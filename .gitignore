@@ -54,3 +54,23 @@ compile_commands.json
 *creator.user*
 
 *_qmlcache.qrc
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+cmake_build_dir*/
+_deps/
+
+# CLion
+.idea/
+
+# VSCode
+.vscode/
+!.vscode/settings.json   # odkomentuj jeśli chcesz commitować ustawienia zespołu
+
+# clangd
+.cache/
+
+# KDE / XDG śmieci
+.directory
