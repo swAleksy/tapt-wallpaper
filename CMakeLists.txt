@@ -30,17 +30,19 @@ qt_add_qml_module(tapt-wallpaper
     QML_FILES qml/Main.qml
     QML_FILES qml/Gallery.qml
     QML_FILES qml/GalleryGrid.qml
-    QML_FILES qml/GalleryFooter.qml
+    QML_FILES qml/DetailView.qml
+    
     SOURCES 
         src/models/imageItem.h
+        src/models/imagesmodel.h       src/models/imagesmodel.cpp
         src/services/galleryservice.h src/services/galleryservice.cpp
-        src/models/imagemodel.h       src/models/imagemodel.cpp
-        src/controllers/gallerycontroller.h src/controllers/gallerycontroller.cpp 
+        src/viewmodels/galleryviewmodel.h src/viewmodels/galleryviewmodel.cpp
+        src/viewmodels/detailviewmodel.h src/viewmodels/detailviewmodel.cpp
 )
 
 target_include_directories(tapt-wallpaper PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/controllers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodels
     ${CMAKE_CURRENT_SOURCE_DIR}/src/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/services
 )

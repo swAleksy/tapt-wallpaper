@@ -1,12 +1,15 @@
-#ifndef IMAGEMODEL_H
-#define IMAGEMODEL_H
+#ifndef IMAGESMODEL_H
+#define IMAGESMODEL_H
 
 #include <QAbstractListModel>
 #include "imageItem.h"
 
-class ImageModel : public QAbstractListModel {
+class ImagesModel : public QAbstractListModel {
     Q_OBJECT
 public:
+
+    explicit ImagesModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
+    
     enum ImageRoles {
         UrlRole = Qt::UserRole + 1,
         NameRole
@@ -16,10 +19,9 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    // Metoda do aktualizacji danych z serwisu
-    // void setImages(const QList<ImageItem> &images);
-    void appendImages(const QList<ImageItem> &images); // ← nowa, dodaje na końcu
-    void clear();      
+    void appendImages(const QList<ImageItem> &images); 
+    void clear();  
+    ImageItem imageAt(int row) const;
 
 private:
     QList<ImageItem> m_images;

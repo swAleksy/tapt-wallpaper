@@ -3,22 +3,16 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
-import org.kde.taptwallpaper
 
 Item {
     id: galleryRoot
-
     Kirigami.Theme.inherit: true
-
-    property int imageCount: -1
-    
 
     FolderDialog {
         id: folderDialog
-        title: "Select Folder"
-        options: FolderDialog.ShowDirsOnly
+        title: "Wybierz folder ze zdjęciami"
         onAccepted: {
-            GalleryController.requestScan(folderDialog.selectedFolder)
+            galleryViewModel.loadFolder(folderDialog.selectedFolder)
         }
     }
 
@@ -27,54 +21,70 @@ Item {
         spacing: 0
 
         Button {
-            text: "Open folder and scan"
+            text: "Otwórz folder i skanuj"
             Layout.margins: 10
             onClicked: folderDialog.open()
         }
 
-        // 1. Siatka zdjęć (Plik: GalleryGrid.qml)
+        // Komunikat błędu — binding na viewModel.errorMessage
+        Label {
+            visible: galleryViewModel.errorMessage !== ""
+            text: galleryViewModel.errorMessage
+            Layout.fillWidth: true
+            Layout.margins: 10
+            horizontalAlignment: Text.AlignHCenter
+            color: Kirigami.Theme.negativeTextColor
+        }
+
+        // Placeholder gdy nic nie załadowano i nie ma błędu
+        Label {
+            visible: !galleryViewModel.hasFolder && !galleryViewModel.isLoading
+            text: "Wybierz folder żeby zobaczyć zdjęcia"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            color: Kirigami.Theme.disabledTextColor
+        }
+
+        Label {
+            visible: galleryViewModel.isEmpty && galleryViewModel.errorMessage === ""
+            text: "Brak zdjęć w wybranym folderze"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            color: Kirigami.Theme.disabledTextColor
+        }
         
+        BusyIndicator {
+            Layout.alignment: Qt.AlignHCenter
+            visible: galleryViewModel.isLoading
+            running: galleryViewModel.isLoading
+        }
+
         GalleryGrid {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: galleryRoot.imageCount !== 0
+            visible: galleryViewModel.imageCount > 0
         }
 
-        Label {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: galleryRoot.imageCount === 0
-            text: "No images found"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        Label {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: galleryRoot.imageCount === -1
-            text: "---"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        // Linia podziału
         Rectangle {
             Layout.fillWidth: true
             height: 1
             color: Qt.rgba(0, 0, 0, 0.1)
         }
 
-        GalleryFooter {
+        // Footer — usunęliśmy paginację więc zostaje tylko status
+        Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 50
-        }
-    }
+            Layout.preferredHeight: 30
+            color: "transparent"
 
-    Connections {
-    target: GalleryController
-        function onScanFinished(count) {
-            galleryRoot.imageCount = count
+            Label {
+                anchors.centerIn: parent
+                text: galleryViewModel.imageCount > 0 ? "Załadowano: " + galleryViewModel.imageCount + " zdjęć ": ""
+            }
         }
     }
 }

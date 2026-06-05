@@ -41,10 +41,8 @@ Kirigami.ApplicationWindow {
                 color: Kirigami.Theme.alternateBackgroundColor
 
                 // ← drop your P2 component here
-                Label {
-                    anchors.centerIn: parent
-                    text: "settings Window"
-                    font.pointSize: 18
+                DetailView {
+                    anchors.fill: parent
                 }
             }
         }
