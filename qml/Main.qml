@@ -5,23 +5,20 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ApplicationWindow {
     id: root
-    width: 800
-    height: 600
+    width: Math.round(Screen.width  * 0.666)
+    height: Math.round(Screen.height * 0.666)
     title: qsTr("Tapt")
 
-    // No pageStack — use direct content instead
     SplitView {
         id: mainSplit
         anchors.fill: parent
-        orientation: Qt.Vertical   // horizontal divider (P1+P2 | P3)
+        orientation: Qt.Vertical  
 
-        // ── Top row: P1 | P2 ─────────────────────────────────────────
         SplitView {
             id: topSplit
-            SplitView.fillHeight: true   // takes remaining space above P3
-            orientation: Qt.Horizontal  // vertical divider between P1 and P2
+            SplitView.fillHeight: true   
+            orientation: Qt.Horizontal 
 
-            // P1 — left, large pane
             Rectangle {
                 id: p1
                 SplitView.fillWidth: true
@@ -33,14 +30,12 @@ Kirigami.ApplicationWindow {
                 }
             }
 
-            // P2 — right pane
             Rectangle {
                 id: settingsWindow
                 SplitView.preferredWidth: 220
                 SplitView.minimumWidth: 120
                 color: Kirigami.Theme.alternateBackgroundColor
 
-                // ← drop your P2 component here
                 DetailView {
                     anchors.fill: parent
                 }

@@ -68,6 +68,11 @@ void GalleryViewModel::selectImage(int index)
     QString name = m_model->data(modelIndex, ImagesModel::NameRole).toString();
  
     m_detail->setImage(url, name);
+
+    if (m_selectedIndex != index) {
+        m_selectedIndex = index;
+        emit selectedIndexChanged();
+    }
 }
 
 

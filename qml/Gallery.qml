@@ -1,4 +1,5 @@
 import QtQuick
+import QtQml
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
@@ -11,22 +12,32 @@ Item {
     FolderDialog {
         id: folderDialog
         title: "Wybierz folder ze zdjęciami"
-        onAccepted: {
-            galleryViewModel.loadFolder(folderDialog.selectedFolder)
-        }
+        currentFolder: galleryViewModel.defaultDir
+        onAccepted: galleryViewModel.loadFolder(folderDialog.selectedFolder)
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        Button {
-            text: "Otwórz folder i skanuj"
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: false 
+            Layout.preferredHeight: 30
             Layout.margins: 10
-            onClicked: folderDialog.open()
+
+            Button {
+                text: "Otwórz folder i skanuj"
+                onClicked: folderDialog.open()
+            }
+
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                text: galleryViewModel.imageCount > 0 ? "Załadowano: " + galleryViewModel.imageCount + " zdjęć": ""
+            }
         }
 
-        // Komunikat błędu — binding na viewModel.errorMessage
         Label {
             visible: galleryViewModel.errorMessage !== ""
             text: galleryViewModel.errorMessage
@@ -36,12 +47,11 @@ Item {
             color: Kirigami.Theme.negativeTextColor
         }
 
-        // Placeholder gdy nic nie załadowano i nie ma błędu
         Label {
             visible: !galleryViewModel.hasFolder && !galleryViewModel.isLoading
             text: "Wybierz folder żeby zobaczyć zdjęcia"
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: visible
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             color: Kirigami.Theme.disabledTextColor
@@ -51,12 +61,12 @@ Item {
             visible: galleryViewModel.isEmpty && galleryViewModel.errorMessage === ""
             text: "Brak zdjęć w wybranym folderze"
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: visible
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             color: Kirigami.Theme.disabledTextColor
         }
-        
+
         BusyIndicator {
             Layout.alignment: Qt.AlignHCenter
             visible: galleryViewModel.isLoading
@@ -73,18 +83,6 @@ Item {
             Layout.fillWidth: true
             height: 1
             color: Qt.rgba(0, 0, 0, 0.1)
-        }
-
-        // Footer — usunęliśmy paginację więc zostaje tylko status
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 30
-            color: "transparent"
-
-            Label {
-                anchors.centerIn: parent
-                text: galleryViewModel.imageCount > 0 ? "Załadowano: " + galleryViewModel.imageCount + " zdjęć ": ""
-            }
         }
     }
 }

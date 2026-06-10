@@ -2,6 +2,9 @@
 #define GALLERYVIEWMODEL_H
 
 #include <QObject>
+#include <QStandardPaths>
+#include <QUrl>
+#include <qstandardpaths.h>
 #include <qtmetamacros.h>
 #include "../services/galleryservice.h"
 #include "../models/imagesmodel.h"
@@ -11,27 +14,30 @@ class GalleryViewModel : public QObject
 {
     Q_OBJECT
 
-    Q_PROPERTY(ImagesModel* imagesModel READ imagesModel    CONSTANT)
-    Q_PROPERTY(DetailViewModel* detail  READ detail         CONSTANT)
+    Q_PROPERTY(ImagesModel* imagesModel READ imagesModel CONSTANT)
+    Q_PROPERTY(DetailViewModel* detail  READ detail CONSTANT)
     Q_PROPERTY(bool        isLoading    READ isLoading    NOTIFY isLoadingChanged)
     Q_PROPERTY(int         imageCount   READ imageCount   NOTIFY imageCountChanged)
     Q_PROPERTY(QString     errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool        hasFolder    READ hasFolder    NOTIFY hasFolderChanged)
     Q_PROPERTY(bool        isEmpty      READ isEmpty      NOTIFY imageCountChanged)
-
+    Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedIndexChanged)
+    Q_PROPERTY(QUrl defaultDir READ defaultDir CONSTANT) // default picture dir location
 
 public:
     explicit GalleryViewModel(QObject *parent = nullptr);
     ~GalleryViewModel();
 
     // Gettery — czyta Q_PROPERTY
-    ImagesModel* imagesModel() const  { return m_model; }
-    DetailViewModel* detail() const { return m_detail; }
-    bool   isLoading()    const     { return m_isLoading; }
-    int    imageCount()   const     { return m_imageCount; }
-    QString errorMessage() const    { return m_errorMessage; }
-    bool   hasFolder()    const     { return m_hasFolder; }
-    bool   isEmpty()      const     { return m_hasFolder && m_imageCount == 0 && !m_isLoading; }
+    ImagesModel* imagesModel()  const   { return m_model; }
+    DetailViewModel* detail()   const   { return m_detail; }
+    bool isLoading()            const   { return m_isLoading; }
+    int imageCount()            const   { return m_imageCount; }
+    QString errorMessage()      const   { return m_errorMessage; }
+    bool hasFolder()            const   { return m_hasFolder; }
+    bool isEmpty()              const   { return m_hasFolder && m_imageCount == 0 && !m_isLoading; }
+    QUrl defaultDir()           const   { return QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)); }
+    int selectedIndex()         const   { return m_selectedIndex; }
 
     // Akcje wywoływane z QML
     Q_INVOKABLE void loadFolder(const QUrl &folderUrl);
@@ -43,7 +49,8 @@ signals:
     void imageCountChanged();
     void errorMessageChanged();
     void hasFolderChanged();
-
+    void selectedIndexChanged();
+    
 private:
     // Prywatne settery — emitują sygnały, QML samo się odświeża
     void setIsLoading(bool value);
@@ -61,7 +68,8 @@ private:
     int             m_imageCount    = 0;
     bool            m_hasFolder     = false;
     QString         m_errorMessage;
- 
+    int             m_selectedIndex = -1;
+
     static constexpr int BATCH_SIZE = 50;
 };
 
