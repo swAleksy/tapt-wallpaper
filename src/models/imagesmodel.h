@@ -4,13 +4,15 @@
 #include <QAbstractListModel>
 #include "imageItem.h"
 
-class ImagesModel : public QAbstractListModel {
+class ImagesModel : public QAbstractListModel
+{
     Q_OBJECT
 public:
 
     explicit ImagesModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
-    
-    enum ImageRoles {
+
+    enum ImageRoles
+    {
         UrlRole = Qt::UserRole + 1,
         NameRole
     };
@@ -19,8 +21,8 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void appendImages(const QList<ImageItem> &images); 
-    void clear();  
+    void appendImages(const QList<ImageItem> &images);
+    void clear();
     ImageItem imageAt(int row) const;
 
 private:

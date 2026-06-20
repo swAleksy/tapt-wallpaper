@@ -17,7 +17,7 @@ include(KDEInstallDirs6)
 include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Widgets Concurrent)
 find_package(KF6 REQUIRED COMPONENTS Kirigami)
 
 qt_add_executable(tapt-wallpaper
@@ -31,16 +31,17 @@ qt_add_qml_module(tapt-wallpaper
     QML_FILES qml/Gallery.qml
     QML_FILES qml/GalleryGrid.qml
     QML_FILES qml/DetailView.qml
-    
-    SOURCES 
+
+    SOURCES
         src/models/imageItem.h
         src/models/imagesmodel.h       src/models/imagesmodel.cpp
         src/services/galleryservice.h src/services/galleryservice.cpp
+        src/services/asyncimageprovider.h
         src/viewmodels/galleryviewmodel.h src/viewmodels/galleryviewmodel.cpp
         src/viewmodels/detailviewmodel.h src/viewmodels/detailviewmodel.cpp
 )
 
-target_include_directories(tapt-wallpaper PRIVATE 
+target_include_directories(tapt-wallpaper PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodels
     ${CMAKE_CURRENT_SOURCE_DIR}/src/models
@@ -53,6 +54,7 @@ target_link_libraries(tapt-wallpaper PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::Widgets 
+    Qt6::Widgets
     KF6::Kirigami
+    Qt6::Concurrent
 )

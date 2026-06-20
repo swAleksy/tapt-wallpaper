@@ -6,9 +6,11 @@
 #include <QUrl>
 #include <qstandardpaths.h>
 #include <qtmetamacros.h>
+#include <memory>
 #include "../services/galleryservice.h"
 #include "../models/imagesmodel.h"
 #include "detailviewmodel.h"
+#include <QFutureWatcher>
 
 class GalleryViewModel : public QObject
 {
@@ -20,7 +22,7 @@ class GalleryViewModel : public QObject
     Q_PROPERTY(int         imageCount   READ imageCount   NOTIFY imageCountChanged)
     Q_PROPERTY(QString     errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool        hasFolder    READ hasFolder    NOTIFY hasFolderChanged)
-    Q_PROPERTY(bool        isEmpty      READ isEmpty      NOTIFY imageCountChanged)
+    Q_PROPERTY(bool        isEmpty      READ isEmpty      NOTIFY isEmptyChanged)
     Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedIndexChanged)
     Q_PROPERTY(QUrl defaultDir READ defaultDir CONSTANT) // default picture dir location
 
@@ -49,6 +51,7 @@ signals:
     void imageCountChanged();
     void errorMessageChanged();
     void hasFolderChanged();
+    void isEmptyChanged();
     void selectedIndexChanged();
     
 private:
@@ -57,8 +60,9 @@ private:
     void setImageCount(int value);
     void setErrorMessage(const QString &value);
     void setHasFolder(bool value);
+    void resetSelectedIndex();
 
-    GalleryService  *m_service;
+    std::shared_ptr<GalleryService> m_service;
     ImagesModel     *m_model;
     DetailViewModel *m_detail;
 
@@ -69,6 +73,9 @@ private:
     bool            m_hasFolder     = false;
     QString         m_errorMessage;
     int             m_selectedIndex = -1;
+    QList<ImageItem> m_allItems;  
+
+    QFutureWatcher<QList<ImageItem>> m_scanWatcher;
 
     static constexpr int BATCH_SIZE = 50;
 };

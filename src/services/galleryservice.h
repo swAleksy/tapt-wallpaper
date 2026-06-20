@@ -7,7 +7,7 @@
 class GalleryService
 {
 public:
-    QList<ImageItem> scanFolder(const QString &folderPath, int offset = 0, int limit = 50) const;
+    QList<ImageItem> scanFolder(const QString &folderPath) const;
 };
 
 #endif // GALLERYSERVICE_H

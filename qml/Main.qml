@@ -44,8 +44,9 @@ Kirigami.ApplicationWindow {
 
         Rectangle {
             id: timeline
-            SplitView.preferredHeight: 120
-            SplitView.minimumHeight: 60
+            SplitView.preferredHeight: Math.round(root.height * 0.15)
+            SplitView.minimumHeight: Math.round(root.height * 0.08)
+            SplitView.maximumHeight: Math.round(root.height * 0.35)
             color: Kirigami.Theme.backgroundColor
 
             // ← drop your P3 component here

@@ -47,21 +47,12 @@ Item {
             color: Kirigami.Theme.negativeTextColor
         }
 
-        Label {
-            visible: !galleryViewModel.hasFolder && !galleryViewModel.isLoading
-            text: "Wybierz folder żeby zobaczyć zdjęcia"
-            Layout.fillWidth: true
-            Layout.fillHeight: visible
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            color: Kirigami.Theme.disabledTextColor
-        }
 
         Label {
-            visible: galleryViewModel.isEmpty && galleryViewModel.errorMessage === ""
-            text: "Brak zdjęć w wybranym folderze"
+            visible: (!galleryViewModel.hasFolder && !galleryViewModel.isLoading) || (galleryViewModel.isEmpty && galleryViewModel.errorMessage === "")
+            text: !galleryViewModel.hasFolder ? "Wybierz folder żeby zobaczyć zdjęcia" : "Brak zdjęć w wybranym folderze"
             Layout.fillWidth: true
-            Layout.fillHeight: visible
+            Layout.fillHeight: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             color: Kirigami.Theme.disabledTextColor
@@ -69,13 +60,14 @@ Item {
 
         BusyIndicator {
             Layout.alignment: Qt.AlignHCenter
-            visible: galleryViewModel.isLoading
-            running: galleryViewModel.isLoading
+            Layout.fillHeight: galleryViewModel.isLoading && galleryViewModel.imageCount === 0
+            visible: galleryViewModel.isLoading && galleryViewModel.imageCount === 0
+            running: visible
         }
-
+        
         GalleryGrid {
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: galleryViewModel.imageCount > 0 // Keep it true as long as we have images
             visible: galleryViewModel.imageCount > 0
         }
 
