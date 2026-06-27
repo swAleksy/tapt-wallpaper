@@ -7,17 +7,19 @@
 #include <qstandardpaths.h>
 #include <qtmetamacros.h>
 #include <memory>
+#include <QFutureWatcher>
+#include <qqml.h>
+
 #include "../services/galleryservice.h"
 #include "../models/imagesmodel.h"
-#include "detailviewmodel.h"
-#include <QFutureWatcher>
 
 class GalleryViewModel : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_SINGLETON
 
     Q_PROPERTY(ImagesModel* imagesModel READ imagesModel CONSTANT)
-    Q_PROPERTY(DetailViewModel* detail  READ detail CONSTANT)
     Q_PROPERTY(bool        isLoading    READ isLoading    NOTIFY isLoadingChanged)
     Q_PROPERTY(int         imageCount   READ imageCount   NOTIFY imageCountChanged)
     Q_PROPERTY(QString     errorMessage READ errorMessage NOTIFY errorMessageChanged)
@@ -30,9 +32,13 @@ public:
     explicit GalleryViewModel(QObject *parent = nullptr);
     ~GalleryViewModel();
 
+    static GalleryViewModel* create(QQmlEngine*, QJSEngine*)
+    {
+        return new GalleryViewModel();
+    }
+
     // Gettery — czyta Q_PROPERTY
     ImagesModel* imagesModel()  const   { return m_model; }
-    DetailViewModel* detail()   const   { return m_detail; }
     bool isLoading()            const   { return m_isLoading; }
     int imageCount()            const   { return m_imageCount; }
     QString errorMessage()      const   { return m_errorMessage; }
@@ -53,7 +59,8 @@ signals:
     void hasFolderChanged();
     void isEmptyChanged();
     void selectedIndexChanged();
-    
+    void imageSelected(const QString &url, const QString &name);
+
 private:
     // Prywatne settery — emitują sygnały, QML samo się odświeża
     void setIsLoading(bool value);
@@ -64,7 +71,6 @@ private:
 
     std::shared_ptr<GalleryService> m_service;
     ImagesModel     *m_model;
-    DetailViewModel *m_detail;
 
     QString         m_currentFolder;
     int             m_loadedCount   = 0;
@@ -73,7 +79,7 @@ private:
     bool            m_hasFolder     = false;
     QString         m_errorMessage;
     int             m_selectedIndex = -1;
-    QList<ImageItem> m_allItems;  
+    QList<ImageItem> m_allItems;
 
     QFutureWatcher<QList<ImageItem>> m_scanWatcher;
 

@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
+import org.kde.taptwallpaper
 
 Item {
     id: galleryRoot
@@ -12,8 +13,8 @@ Item {
     FolderDialog {
         id: folderDialog
         title: "Wybierz folder ze zdjęciami"
-        currentFolder: galleryViewModel.defaultDir
-        onAccepted: galleryViewModel.loadFolder(folderDialog.selectedFolder)
+        currentFolder: GalleryViewModel.defaultDir
+        onAccepted: GalleryViewModel.loadFolder(folderDialog.selectedFolder)
     }
 
     ColumnLayout {
@@ -22,7 +23,7 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: false 
+            Layout.fillHeight: false
             Layout.preferredHeight: 30
             Layout.margins: 10
 
@@ -34,23 +35,22 @@ Item {
             Label {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                text: galleryViewModel.imageCount > 0 ? "Załadowano: " + galleryViewModel.imageCount + " zdjęć": ""
+                text: GalleryViewModel.imageCount > 0 ? "Załadowano: " + GalleryViewModel.imageCount + " zdjęć" : ""
             }
         }
 
         Label {
-            visible: galleryViewModel.errorMessage !== ""
-            text: galleryViewModel.errorMessage
+            visible: GalleryViewModel.errorMessage !== ""
+            text: GalleryViewModel.errorMessage
             Layout.fillWidth: true
             Layout.margins: 10
             horizontalAlignment: Text.AlignHCenter
             color: Kirigami.Theme.negativeTextColor
         }
 
-
         Label {
-            visible: (!galleryViewModel.hasFolder && !galleryViewModel.isLoading) || (galleryViewModel.isEmpty && galleryViewModel.errorMessage === "")
-            text: !galleryViewModel.hasFolder ? "Wybierz folder żeby zobaczyć zdjęcia" : "Brak zdjęć w wybranym folderze"
+            visible: (!GalleryViewModel.hasFolder && !GalleryViewModel.isLoading) || (GalleryViewModel.isEmpty && GalleryViewModel.errorMessage === "")
+            text: !GalleryViewModel.hasFolder ? "Wybierz folder żeby zobaczyć zdjęcia" : "Brak zdjęć w wybranym folderze"
             Layout.fillWidth: true
             Layout.fillHeight: true
             horizontalAlignment: Text.AlignHCenter
@@ -60,15 +60,15 @@ Item {
 
         BusyIndicator {
             Layout.alignment: Qt.AlignHCenter
-            Layout.fillHeight: galleryViewModel.isLoading && galleryViewModel.imageCount === 0
-            visible: galleryViewModel.isLoading && galleryViewModel.imageCount === 0
+            Layout.fillHeight: GalleryViewModel.isLoading && GalleryViewModel.imageCount === 0
+            visible: GalleryViewModel.isLoading && GalleryViewModel.imageCount === 0
             running: visible
         }
-        
+
         GalleryGrid {
             Layout.fillWidth: true
-            Layout.fillHeight: galleryViewModel.imageCount > 0 // Keep it true as long as we have images
-            visible: galleryViewModel.imageCount > 0
+            Layout.fillHeight: GalleryViewModel.imageCount > 0 // Keep it true as long as we have images
+            visible: GalleryViewModel.imageCount > 0
         }
 
         Rectangle {
