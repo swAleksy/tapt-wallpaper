@@ -1,23 +1,30 @@
-# TaptWallpaper
+# TapTWallpaper
 
-Aplikacja galerii i tapet dla KDE Plasma (Qt6/QML). Pozwala przeglądać zdjęcia
-z wybranego folderu, edytować je (jasność, nasycenie, barwa, filtry LUT) i
-ustawiać jako tapetę pulpitu.
+A **Qt 6**/**QML** application for managing a wallpaper gallery and editing wallpapers. Thanks to its hybrid architecture, the application provides smooth real-time previews without putting unnecessary load on the CPU.
 
-## Funkcje
+<img width="1487" height="761" alt="Image" src="https://github.com/user-attachments/assets/411ea3d1-55d7-4922-ba69-e3ef61f23870" />
 
-- Przeglądanie folderu ze zdjęciami w siatce miniaturek (ładowanie kafelkami)
-- Podgląd szczegółowy zdjęcia z edycją hue / brightness / saturation
-- Filtry kolorystyczne oparte na plikach LUT (`.cube`)
-- Ustawianie wybranego zdjęcia jako tapety
+## Main Features
 
-## Stack
+* **Smooth Image Gallery:** Multithreaded folder scanning (`QtConcurrent`) with asynchronous thumbnail loading.
+* **3D LUT Filters:** Apply professional color lookup tables directly on the GPU using a dedicated shader (`.qsb`). *(TODO)*
+* **Real-Time Color Adjustments:** Instantly preview changes to brightness, saturation, hue, and horizontal mirroring. *(TODO)*
+* **System Integration:** Quickly set the processed image as the desktop wallpaper and manage wallpaper playlists. *(TODO)*
 
-- Qt6 / QML — MVVM, view modele jako `QML_SINGLETON`
-- C++ — skanowanie folderów, przetwarzanie obrazów, provider tekstur LUT
-- Custom shader (GLSL `.frag` → `.qsb`) do próbkowania filtrów LUT na GPU
+## Architecture & Technology
 
-## Status
+* **C++ (Backend):** Manages the application state using the MVVM architecture.
+* **QML & Kirigami (Frontend):** User interface built with the **KDE Kirigami** framework.
 
-Projekt w budowie. Podgląd LUT na żywo oraz akcje w widoku szczegółów
-(*Zastosuj*, *Ustaw jako tapetę*) są jeszcze w trakcie dopinania.
+## Requirements & Build
+
+* **Environment:** Qt 6.5+ (with the `Quick` and `QuickEffects` modules)
+* **Framework:** KDE Kirigami
+* **Build System:** CMake 3.20+
+
+```bash
+mkdir build && cd build
+cmake ..
+cmake --build .
+./taptwallpaper
+```
