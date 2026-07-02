@@ -3,7 +3,16 @@
 DetailViewModel::DetailViewModel(QObject *parent)
     : QObject(parent)
     , m_lutFiltersListModel(new LutFiltersListModel(this))
+    , m_lutService(new LutService(this))   // ← brakuje
 {
+    connect(m_lutService, &LutService::lutApplied, this, [this](const QImage &result) {
+        // zapisz m_lutProcessed, zaktualizuj imageUrl przez tymczasowy provider
+        m_lutProcessed = result;
+        emit imageUrlChanged();
+    });
+    connect(m_lutService, &LutService::lutFailed, this, [this](const QString &err) {
+        qWarning() << "LUT failed:" << err;
+    });
     m_lutFiltersListModel->loadFromDirectory(":/luts");
 }
 
@@ -18,6 +27,8 @@ void DetailViewModel::setImage(const QString &url, const QString &name)
     m_imageUrl    = url;
     m_imageName   = name;
 
+    m_originalImage = QImage(url);
+
     if (urlChanged)  emit imageUrlChanged();
     if (nameChanged) emit imageNameChanged();
     if (wasEmpty != m_imageUrl.isEmpty()) emit hasImageChanged();
@@ -29,11 +40,42 @@ void DetailViewModel::setImage(const QString &url, const QString &name)
 void DetailViewModel::clear()
 {
     setImage("", "");
+
+    m_current = ColorState{};
+    m_committed = ColorState{};
+
+    emit hueChanged();
+    emit brightnessChanged();
+    emit saturationChanged();
+    emit flippedChanged();
+    emit activeFilterIndexChanged();
 }
 
 void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation, bool flipped, int filterIndex)
 {
-    // todo
+    m_committed = m_current;   // zapisz poprzedni stan do revert
+
+    m_current.hue = hue;
+    m_current.brightness = brightness;
+    m_current.saturation = saturation;
+    m_current.flipped = flipped;
+    m_current.activeFilterIndex = filterIndex;
+
+    // Pobierz LUT jeśli wybrany
+    std::optional<LutData> lutOpt;
+    if (filterIndex >= 0) {
+        QString path = m_lutFiltersListModel->lutPath(filterIndex);
+        lutOpt = LutService::load(path);
+    }
+
+    LutData lut = lutOpt.value_or(LutData{});
+    m_lutService->applyChangesAsync(m_originalImage, hue, brightness, saturation, lut);
+
+    emit hueChanged();
+    emit brightnessChanged();
+    emit saturationChanged();
+    emit flippedChanged();
+    emit activeFilterIndexChanged();
 }
 
 void DetailViewModel::revertChanges()

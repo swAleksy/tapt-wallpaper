@@ -123,15 +123,38 @@ Item {
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 mirror: previewFlipped
+                visible: false
             }
 
             // Qt6 native – jeden efekt zamiast łańcucha
             MultiEffect {
+                id: colorEffect
                 source: popupBase
                 anchors.fill: popupBase
                 brightness: previewBrightness
                 saturation: previewSaturation
-                visible: popupBase.status === Image.Ready
+                visible: false // ZMIANA: Ukrywamy, bo ma być tylko wejściem dla LUT
+            }
+
+            // 3. Przechwycenie wyniku MultiEffect jako nowej tekstury
+            ShaderEffectSource {
+                id: effectSource
+                sourceItem: colorEffect
+                hideSource: true // Automatycznie ukrywa źródło, jeśli zapomnisz dać visible: false
+                live: true       // Odświeża się na bieżąco przy ruszaniu suwakami
+            }
+
+            // 4. Drugi etap: Nakładamy Twój autorski filtr LUT
+            ShaderEffect {
+                anchors.fill: popupBase
+                // ZMIANA: Zamiast thumbBase, podajemy wygenerowaną teksturę z efektami
+                property variant sourceImage: effectSource
+                property variant lutTexture: Image {
+                    source: previewFilterIndex >= 0 ? "image://lut/" + DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex) : ""
+                }
+                property real lutSize: 33.0
+                property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
+                fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
             }
         }
 
@@ -200,6 +223,7 @@ Item {
                 layer.enabled: true  // clip do zaokrąglonych rogów
 
                 // Obraz źródłowy (widoczny – MultiEffect renderuje się na wierzchu)
+                // 1. Obraz bazowy - ukrywamy go, bo nie chcemy go bezpośrednio widzieć
                 Image {
                     id: thumbBase
                     anchors.fill: parent
@@ -207,15 +231,38 @@ Item {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     mirror: previewFlipped
+                    visible: false // ZMIANA: Ukrywamy oryginał!
                 }
 
-                // Qt6 native MultiEffect – brightness + saturation w jednym przebiegu GPU
+                // 2. Pierwszy etap: Jasność i Nasycenie
                 MultiEffect {
+                    id: thumbColorEffect
                     source: thumbBase
                     anchors.fill: thumbBase
-                    brightness: previewBrightness  // −1.0 … 0.0 … +1.0
-                    saturation: previewSaturation  // −1.0 (szary) … 0.0 … +1.0 (nasycony)
-                    visible: thumbBase.status === Image.Ready
+                    brightness: previewBrightness
+                    saturation: previewSaturation
+                    visible: false // ZMIANA: Ukrywamy, bo ma być tylko wejściem dla LUT
+                }
+
+                // 3. Przechwycenie wyniku MultiEffect jako nowej tekstury
+                ShaderEffectSource {
+                    id: thumbEffectSource
+                    sourceItem: thumbColorEffect
+                    hideSource: true // Automatycznie ukrywa źródło, jeśli zapomnisz dać visible: false
+                    live: true       // Odświeża się na bieżąco przy ruszaniu suwakami
+                }
+
+                // 4. Drugi etap: Nakładamy Twój autorski filtr LUT
+                ShaderEffect {
+                    anchors.fill: thumbBase
+                    // ZMIANA: Zamiast thumbBase, podajemy wygenerowaną teksturę z efektami
+                    property variant sourceImage: thumbEffectSource
+                    property variant lutTexture: Image {
+                        source: previewFilterIndex >= 0 ? "image://lut/" + DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex) : ""
+                    }
+                    property real lutSize: 33.0
+                    property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
+                    fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
                 }
 
                 // Placeholder ładowania (ponad efektem)
@@ -460,14 +507,25 @@ Item {
                         color: Kirigami.Theme.textColor
                     }
                     // Odznaka aktywnego filtra
+                    // Odznaka aktywnego filtra
                     Rectangle {
                         visible: previewFilterIndex >= 0
                         implicitWidth: badge.implicitWidth + 12
                         implicitHeight: 18
                         radius: 9
-                        color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.22)
-                        border.color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.5)
+
+                        // Główny kontener jest przezroczysty, ma tylko ramkę
+                        color: "transparent"
+                        border.color: Kirigami.Theme.highlightColor
                         border.width: 1
+
+                        // Ten wewnętrzny prostokąt robi za półprzezroczyste tło (alpha = 0.22)
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            color: Kirigami.Theme.highlightColor
+                            opacity: 0.22
+                        }
 
                         Label {
                             id: badge
@@ -518,13 +576,15 @@ Item {
                     cellWidth: Math.floor(width / 3)
                     cellHeight: Math.floor(cellWidth * 0.68) + 22
 
-                    model: DetailViewModel.filtersModel
+                    model: DetailViewModel.lutFiltersListModel
 
                     delegate: Item {
                         width: filterGrid.cellWidth
                         height: filterGrid.cellHeight
 
                         readonly property bool isActive: previewFilterIndex === index
+
+                        readonly property color sepColor: Kirigami.Theme.separatorColor
 
                         Rectangle {
                             anchors {
@@ -534,7 +594,7 @@ Item {
                             radius: 5
                             color: "transparent"
                             border.width: isActive ? 2 : 1
-                            border.color: isActive ? Kirigami.Theme.highlightColor : Qt.rgba(Kirigami.Theme.separatorColor.r, Kirigami.Theme.separatorColor.g, Kirigami.Theme.separatorColor.b, 0.5)
+                            border.color: isActive ? Kirigami.Theme.highlightColor : Qt.rgba(sepColor.r, sepColor.g, sepColor.b, 0.5)
 
                             Rectangle {
                                 anchors.fill: parent

@@ -8,6 +8,7 @@
 #include <qtypes.h>
 #include <QImage>
 #include "lutfilterslistmodel.h"
+#include "lutservice.h"
 
 class DetailViewModel : public QObject
 {
@@ -39,12 +40,12 @@ public:
     QString imageUrl()          const { return m_imageUrl; }
     QString imageName()         const { return m_imageName; }
     bool    hasImage()          const { return !m_imageUrl.isEmpty(); }
-    qreal   hue()               const { return m_hue; }
-    qreal   brightness()        const { return m_brightness; }
-    qreal   saturation()        const { return m_saturation; }
-    bool    flipped()           const { return m_flipped; }
-    int     activeFilterIndex() const { return m_activeFilterIndex; }
-
+    qreal   hue()               const { return m_current.hue; }
+    qreal   brightness()        const { return m_current.brightness; }
+    qreal   saturation()        const { return m_current.saturation; }
+    bool    flipped()           const { return m_current.flipped; }
+    int     activeFilterIndex() const { return m_current.activeFilterIndex; }
+    LutFiltersListModel* lutFiltersListModel() const { return m_lutFiltersListModel; }
 
     void clear();
 
@@ -66,11 +67,12 @@ signals:
     void flippedChanged();
     void activeFilterIndexChanged();
 
-    void StateReverted();
+    void stateReverted();
     void imageLoaded();
 
 private:
     LutFiltersListModel *m_lutFiltersListModel;
+    LutService *m_lutService;
 
     struct ColorState
     {
@@ -78,7 +80,7 @@ private:
         qreal brightness  = 0.0;
         qreal saturation  = 0.0;
         bool  flipped     = false;
-        int   filterIndex = -1;
+        int   activeFilterIndex = -1;
     };
 
     QImage m_originalImage;    // wczytany raz, nigdy nie ruszany
@@ -91,9 +93,6 @@ private:
     QString m_imageUrl;
     QString m_imageName;
 
-    qreal m_hue = 0.0, m_brightness = 0.0, m_saturation = 0.0;
-    bool  m_flipped = false;
-    int   m_activeFilterIndex = -1;
 };
 
 
