@@ -20,12 +20,10 @@ public:
 
         connect(&m_watcher, &QFutureWatcher<QImage>::finished, this, &AsyncImageResponse::handleFinished);
 
-        QFuture<QImage> future = QtConcurrent::run([id, requestedSize, abortFlag]() {
-
+        QFuture<QImage> future = QtConcurrent::run([id, requestedSize, abortFlag]()
+        {
             if (abortFlag->load()) return QImage();
-
             QImage img(id);
-
             if (abortFlag->load()) return QImage();
 
             if (!img.isNull() && requestedSize.isValid()) {
@@ -39,7 +37,8 @@ public:
 
     ~AsyncImageResponse() override
     {
-            m_abortFlag->store(true);
+        m_watcher.disconnect();
+        m_abortFlag->store(true);
     }
 
     QQuickTextureFactory *textureFactory() const override

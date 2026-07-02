@@ -78,3 +78,7 @@ _deps/
 .zed/
 .clangd
 compile_commands.json
+
+# luts
+.cube
+.cube luts

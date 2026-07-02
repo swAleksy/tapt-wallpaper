@@ -7,7 +7,6 @@ GalleryViewModel::GalleryViewModel(QObject *parent)
     : QObject(parent)
     , m_service(std::make_shared<GalleryService>())
     , m_model(new ImagesModel(this))
-    , m_detail(new DetailViewModel(this))
     {
         connect(&m_scanWatcher, &QFutureWatcher<QList<ImageItem>>::finished, this, [this]() {
             m_allItems = m_scanWatcher.result();
@@ -28,7 +27,7 @@ void GalleryViewModel::loadFolder(const QUrl &folderUrl)
 
     m_currentFolder = path;
     m_model->clear();
-    m_detail->clear();
+    /// m_detail->clear(); /// fixxx
     m_allItems.clear();
 
     resetSelectedIndex();
@@ -60,20 +59,18 @@ void GalleryViewModel::loadNextBatch()
 
 void GalleryViewModel::selectImage(int index)
 {
-    QModelIndex modelIndex = m_model->index(index, 0);
+    if (m_selectedIndex != index) {
+        m_selectedIndex = index;
+        emit selectedIndexChanged();
+    }
 
+    QModelIndex modelIndex = m_model->index(index, 0);
     if (!modelIndex.isValid())
         return;
 
     QString url  = m_model->data(modelIndex, ImagesModel::UrlRole).toString();
     QString name = m_model->data(modelIndex, ImagesModel::NameRole).toString();
-
-    m_detail->setImage(url, name);
-
-    if (m_selectedIndex != index) {
-        m_selectedIndex = index;
-        emit selectedIndexChanged();
-    }
+    emit imageSelected(url, name);
 }
 
 void GalleryViewModel::setIsLoading(bool value)

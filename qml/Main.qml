@@ -2,22 +2,30 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.taptwallpaper
 
 Kirigami.ApplicationWindow {
     id: root
-    width: Math.round(Screen.width  * 0.666)
+    width: Math.round(Screen.width * 0.666)
     height: Math.round(Screen.height * 0.666)
     title: qsTr("Tapt")
+
+    Connections {
+        target: GalleryViewModel
+        function onImageSelected(url, name) {
+            DetailViewModel.setImage(url, name);
+        }
+    }
 
     SplitView {
         id: mainSplit
         anchors.fill: parent
-        orientation: Qt.Vertical  
+        orientation: Qt.Vertical
 
         SplitView {
             id: topSplit
-            SplitView.fillHeight: true   
-            orientation: Qt.Horizontal 
+            SplitView.fillHeight: true
+            orientation: Qt.Horizontal
 
             Rectangle {
                 id: p1
@@ -31,11 +39,11 @@ Kirigami.ApplicationWindow {
             }
 
             Rectangle {
-                id: settingsWindow
+                id: detailsWindow
                 SplitView.preferredWidth: 220
                 SplitView.minimumWidth: 120
                 color: Kirigami.Theme.alternateBackgroundColor
-
+                visible: DetailViewModel.hasImage
                 DetailView {
                     anchors.fill: parent
                 }
