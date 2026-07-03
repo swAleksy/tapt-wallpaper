@@ -24,8 +24,6 @@ QVariant LutFiltersListModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case NameRole:
         return item.name;
-    case PreviewUrlRole:
-        return item.previewUrl;
     case LutPathRole:
         return item.lutPath;
     }
@@ -39,7 +37,6 @@ QHash<int, QByteArray> LutFiltersListModel::roleNames() const
 {
     QHash<int, QByteArray> roles;
     roles[NameRole] = "name";
-    roles[PreviewUrlRole] = "previewUrl";
     roles[LutPathRole] = "lutPath";
     return roles;
 }
@@ -76,9 +73,6 @@ void LutFiltersListModel::loadFromDirectory(const QString &dir)
         //                   ? QUrl::fromLocalFile(pngPath)
         //                   : QUrl{};
         QString pngPath = ":/luts/" + fi.baseName() + ".png";  // bezpieczna, jawna ścieżka
-        item.previewUrl = QFile::exists(pngPath)
-                          ? QUrl(QStringLiteral("qrc") + pngPath)  // "qrc:/luts/plik.png"
-                          : QUrl{};
         items.append(item);
     }
     beginResetModel();

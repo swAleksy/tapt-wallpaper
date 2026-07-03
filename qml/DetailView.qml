@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.taptwallpaper
 
@@ -15,7 +16,7 @@ import org.kde.taptwallpaper
 //    saturation        : real   // −1.0 … +1.0  (live preview przez MultiEffect)
 //    flipped           : bool
 //    activeFilterIndex : int    // −1 = brak
-//    filtersModel      : model  // role: name (string), previewUrl (url)
+//    filtersModel      : model  // role: name (string)
 //
 //  Signals
 //    imageLoaded()             ← emitowany przez loadImage() w C++ po zmianie obrazu
@@ -42,38 +43,27 @@ Item {
     property bool previewFlipped: DetailViewModel.flipped
     property int previewFilterIndex: DetailViewModel.activeFilterIndex
 
+    // Funkcja pomocnicza do synchronizacji stanu
+    function syncLocalState() {
+        previewHue = DetailViewModel.hue;
+        previewBrightness = DetailViewModel.brightness;
+        previewSaturation = DetailViewModel.saturation;
+        previewFlipped = DetailViewModel.flipped;
+        previewFilterIndex = DetailViewModel.activeFilterIndex;
+    }
+
     Connections {
         target: DetailViewModel
-
-        // Nowy obraz załadowany → reset CAŁEGO lokalnego stanu naraz
         function onImageLoaded() {
-            previewHue = DetailViewModel.hue;
-            previewBrightness = DetailViewModel.brightness;
-            previewSaturation = DetailViewModel.saturation;
-            previewFlipped = DetailViewModel.flipped;
-            previewFilterIndex = DetailViewModel.activeFilterIndex;
+            syncLocalState();
         }
-
-        // Sync po revertChanges() (poszczególne właściwości)
         function onStateReverted() {
-            previewHue = DetailViewModel.hue;
-            previewBrightness = DetailViewModel.brightness;
-            previewSaturation = DetailViewModel.saturation;
-            previewFlipped = DetailViewModel.flipped;
-            previewFilterIndex = DetailViewModel.activeFilterIndex;
+            syncLocalState();
         }
-        // function onBrightnessChanged() {
-        // }
-        // function onSaturationChanged() {
-        // }
-        // function onFlippedChanged() {
-        // }
-        // function onActiveFilterIndexChanged() {
-        // }
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    //  Popup – pełnoekranowy / 80% podgląd
+    //  Popup – pełnoekranowy podgląd
     // ════════════════════════════════════════════════════════════════════════
     Popup {
         id: previewPopup
@@ -84,7 +74,7 @@ Item {
         y: Math.round((Overlay.overlay.height - height) / 2)
         modal: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        padding: 0
+        padding: 6
 
         enter: Transition {
             NumberAnimation {
@@ -114,7 +104,6 @@ Item {
 
         Item {
             anchors.fill: parent
-            anchors.margins: 6
 
             Image {
                 id: popupBase
@@ -123,31 +112,35 @@ Item {
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 mirror: previewFlipped
+                mipmap: true
                 visible: false
+
+                // DODANE: Wymuszenie ładowania oryginalnej rozdzielczości
+                // Zamiast polegać na cache miniatury, instruujemy QML, jakiej wielkości potrzebujemy
+                sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+                cache: false // Alternatywnie, wyłącza użycie wersji zbuforowanej dla miniatury
             }
 
-            // Qt6 native – jeden efekt zamiast łańcucha
             MultiEffect {
                 id: colorEffect
                 source: popupBase
                 anchors.fill: popupBase
                 brightness: previewBrightness
                 saturation: previewSaturation
-                visible: false // ZMIANA: Ukrywamy, bo ma być tylko wejściem dla LUT
+                visible: false
             }
 
-            // 3. Przechwycenie wyniku MultiEffect jako nowej tekstury
             ShaderEffectSource {
                 id: effectSource
                 sourceItem: colorEffect
-                hideSource: true // Automatycznie ukrywa źródło, jeśli zapomnisz dać visible: false
-                live: true       // Odświeża się na bieżąco przy ruszaniu suwakami
+                hideSource: true
+                live: true
+                mipmap: true
+                visible: popupBase.width > 0 && popupBase.height > 0
             }
 
-            // 4. Drugi etap: Nakładamy Twój autorski filtr LUT
             ShaderEffect {
                 anchors.fill: popupBase
-                // ZMIANA: Zamiast thumbBase, podajemy wygenerowaną teksturę z efektami
                 property variant sourceImage: effectSource
                 property variant lutTexture: Image {
                     source: previewFilterIndex >= 0 ? "image://lut/" + DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex) : ""
@@ -159,13 +152,14 @@ Item {
         }
 
         ToolButton {
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.margins: 8
+            anchors {
+                top: parent.top
+                right: parent.right
+                margins: 8
+            }
             icon.name: "window-close-symbolic"
-            z: 10
             onClicked: previewPopup.close()
-            ToolTip.text: qsTr("Zamknij  (Esc)")
+            ToolTip.text: qsTr("Zamknij (Esc)")
             ToolTip.visible: hovered
             ToolTip.delay: 500
         }
@@ -209,21 +203,24 @@ Item {
             width: parent.width
             spacing: 0
 
-            // ── Miniatura z real-time efektami ────────────────────────────
+            // ── Miniatura ────────────────────────────
             Rectangle {
-                id: thumbContainer
                 Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
+                Layout.margins: 12
                 Layout.topMargin: 14
-                Layout.preferredHeight: Math.round(width * 0.5625)  // 16:9
+                Layout.preferredHeight: Math.round(width * 0.5625)
 
                 radius: 7
                 color: "#08090c"
-                layer.enabled: true  // clip do zaokrąglonych rogów
+                layer.enabled: true
 
-                // Obraz źródłowy (widoczny – MultiEffect renderuje się na wierzchu)
-                // 1. Obraz bazowy - ukrywamy go, bo nie chcemy go bezpośrednio widzieć
+                MouseArea {
+                    id: thumbHoverArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: previewPopup.open()
+                }
+
                 Image {
                     id: thumbBase
                     anchors.fill: parent
@@ -231,31 +228,29 @@ Item {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     mirror: previewFlipped
-                    visible: false // ZMIANA: Ukrywamy oryginał!
+                    mipmap: true // Jakość miniatury
+                    visible: false
                 }
 
-                // 2. Pierwszy etap: Jasność i Nasycenie
                 MultiEffect {
                     id: thumbColorEffect
                     source: thumbBase
                     anchors.fill: thumbBase
                     brightness: previewBrightness
                     saturation: previewSaturation
-                    visible: false // ZMIANA: Ukrywamy, bo ma być tylko wejściem dla LUT
+                    visible: false
                 }
 
-                // 3. Przechwycenie wyniku MultiEffect jako nowej tekstury
                 ShaderEffectSource {
                     id: thumbEffectSource
                     sourceItem: thumbColorEffect
-                    hideSource: true // Automatycznie ukrywa źródło, jeśli zapomnisz dać visible: false
-                    live: true       // Odświeża się na bieżąco przy ruszaniu suwakami
+                    hideSource: true
+                    live: true
+                    mipmap: true
                 }
 
-                // 4. Drugi etap: Nakładamy Twój autorski filtr LUT
                 ShaderEffect {
                     anchors.fill: thumbBase
-                    // ZMIANA: Zamiast thumbBase, podajemy wygenerowaną teksturę z efektami
                     property variant sourceImage: thumbEffectSource
                     property variant lutTexture: Image {
                         source: previewFilterIndex >= 0 ? "image://lut/" + DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex) : ""
@@ -265,17 +260,14 @@ Item {
                     fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
                 }
 
-                // Placeholder ładowania (ponad efektem)
                 Label {
                     anchors.centerIn: parent
                     visible: thumbBase.status !== Image.Ready
-                    z: 2
                     text: thumbBase.status === Image.Loading ? qsTr("Ładowanie…") : qsTr("Brak obrazu")
                     color: Kirigami.Theme.disabledTextColor
                     font.pointSize: 9
                 }
 
-                // Ramka
                 Rectangle {
                     anchors.fill: parent
                     color: "transparent"
@@ -284,17 +276,15 @@ Item {
                     border.width: 1
                 }
 
-                // Przycisk expand
-                RoundButton {
-                    id: expandBtn
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.margins: 7
+                // ZMIANA: Niestandardowy przycisk, aby zyskać perfekcyjne wyśrodkowanie
+                Item {
+                    anchors {
+                        top: parent.top
+                        right: parent.right
+                        margins: 7
+                    }
                     width: 28
                     height: 28
-                    icon.name: "view-fullscreen-symbolic"
-                    padding: 4
-                    z: 5
                     opacity: thumbHoverArea.containsMouse ? 0.92 : 0.0
                     Behavior on opacity {
                         NumberAnimation {
@@ -302,25 +292,30 @@ Item {
                         }
                     }
 
-                    background: Rectangle {
-                        radius: expandBtn.width / 2
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
                         color: Qt.rgba(0, 0, 0, 0.55)
                         border.color: Qt.rgba(1, 1, 1, 0.18)
                         border.width: 1
                     }
 
-                    onClicked: previewPopup.open()
-                    ToolTip.text: qsTr("Pełny podgląd  ·  lub dwuklik")
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 500
-                }
+                    Kirigami.Icon {
+                        anchors.centerIn: parent
+                        width: 14
+                        height: 14
+                        source: "zoom-in"
+                        color: "white" // Nowa ikonka z wymuszonym kolorem, odporna na style Qt
+                    }
 
-                MouseArea {
-                    id: thumbHoverArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    z: 4
-                    onDoubleClicked: previewPopup.open()
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: previewPopup.open()
+                        ToolTip.text: qsTr("Pełny podgląd · lub dwuklik")
+                        ToolTip.visible: containsMouse
+                        ToolTip.delay: 500
+                    }
                 }
             }
 
@@ -339,14 +334,12 @@ Item {
                 color: Kirigami.Theme.textColor
             }
 
-            // ════════════════════════════════════════════════════════════
-            //  SEKCJA: Korekty kolorów
-            // ════════════════════════════════════════════════════════════
             Kirigami.Separator {
                 Layout.fillWidth: true
                 Layout.topMargin: 12
             }
 
+            // ── KOREKTY ──────────────────────────────────────────────
             Label {
                 Layout.leftMargin: 14
                 Layout.topMargin: 8
@@ -365,11 +358,10 @@ Item {
                 Layout.bottomMargin: 4
                 spacing: 1
 
-                // ── Barwa (Hue) ───────────────────────────────────────────
+                // Barwa
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-
                     Label {
                         text: qsTr("Barwa")
                         font.pointSize: 9
@@ -380,17 +372,11 @@ Item {
                         Layout.fillWidth: true
                         from: -1.0
                         to: 1.0
-                        stepSize: 0.005
                         value: previewHue
-                        // onMoved zamiast onValueChanged → unika feedback loop
                         onMoved: previewHue = value
-
-                        ToolTip.text: qsTr("Live preview barwy wymaga custom shadera (.qsb)\nWartość zostanie zastosowana przez Apply")
-                        ToolTip.visible: pressed
                     }
                     Label {
-                        readonly property string sign: previewHue >= 0 ? "+" : ""
-                        text: sign + Math.round(previewHue * 180) + "°"
+                        text: (previewHue > 0 ? "+" : "") + Math.round(previewHue * 180) + "°"
                         font.pointSize: 9
                         font.family: "monospace"
                         color: previewHue !== 0 ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
@@ -399,11 +385,10 @@ Item {
                     }
                 }
 
-                // ── Jasność (Brightness) ──────────────────────────────────
+                // Jasność
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-
                     Label {
                         text: qsTr("Jasność")
                         font.pointSize: 9
@@ -414,13 +399,11 @@ Item {
                         Layout.fillWidth: true
                         from: -1.0
                         to: 1.0
-                        stepSize: 0.005
                         value: previewBrightness
                         onMoved: previewBrightness = value
                     }
                     Label {
-                        readonly property string sign: previewBrightness >= 0 ? "+" : ""
-                        text: sign + Math.round(previewBrightness * 100) + "%"
+                        text: (previewBrightness > 0 ? "+" : "") + Math.round(previewBrightness * 100) + "%"
                         font.pointSize: 9
                         font.family: "monospace"
                         color: previewBrightness !== 0 ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
@@ -429,11 +412,10 @@ Item {
                     }
                 }
 
-                // ── Nasycenie (Saturation) ────────────────────────────────
+                // Nasycenie
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-
                     Label {
                         text: qsTr("Nasycenie")
                         font.pointSize: 9
@@ -444,13 +426,11 @@ Item {
                         Layout.fillWidth: true
                         from: -1.0
                         to: 1.0
-                        stepSize: 0.005
                         value: previewSaturation
                         onMoved: previewSaturation = value
                     }
                     Label {
-                        readonly property string sign: previewSaturation >= 0 ? "+" : ""
-                        text: sign + Math.round(previewSaturation * 100) + "%"
+                        text: (previewSaturation > 0 ? "+" : "") + Math.round(previewSaturation * 100) + "%"
                         font.pointSize: 9
                         font.family: "monospace"
                         color: previewSaturation !== 0 ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
@@ -460,7 +440,6 @@ Item {
                 }
             }
 
-            // ── Odwróć poziomo ────────────────────────────────────────────
             CheckBox {
                 Layout.leftMargin: 10
                 Layout.topMargin: 4
@@ -471,62 +450,51 @@ Item {
                 onToggled: previewFlipped = checked
             }
 
-            // ════════════════════════════════════════════════════════════
-            //  SEKCJA: Filtry / LUT  (zwijana)
-            // ════════════════════════════════════════════════════════════
             Kirigami.Separator {
                 Layout.fillWidth: true
                 Layout.topMargin: 10
             }
 
-            ItemDelegate {
+            // ── FILTRY ──────────────────────────────────────────────
+            // ZMIANA: Zamieniono ItemDelegate na RowLayout dla idealnego marginesu i zrównania z guzikami
+            Item {
                 id: filtersHeader
                 Layout.fillWidth: true
-                implicitHeight: 42
+                Layout.leftMargin: 14
+                Layout.rightMargin: 14
+                Layout.topMargin: 8
+                Layout.bottomMargin: 6
+                implicitHeight: headerRow.implicitHeight
                 property bool sectionExpanded: false
 
-                contentItem: RowLayout {
-                    spacing: 8
-                    anchors {
-                        fill: parent
-                        leftMargin: 6
-                        rightMargin: 8
-                    }
+                RowLayout {
+                    id: headerRow
+                    anchors.fill: parent
 
-                    Kirigami.Icon {
-                        source: "color-management-symbolic"
-                        implicitWidth: 16
-                        implicitHeight: 16
-                        color: Kirigami.Theme.textColor
-                    }
                     Label {
                         Layout.fillWidth: true
-                        text: qsTr("Filtry / LUT")
+                        Layout.alignment: Qt.AlignVCenter
+                        text: qsTr("Filtry")
                         font.bold: true
                         font.pointSize: 9
                         color: Kirigami.Theme.textColor
                     }
-                    // Odznaka aktywnego filtra
-                    // Odznaka aktywnego filtra
+
                     Rectangle {
+                        Layout.alignment: Qt.AlignVCenter
                         visible: previewFilterIndex >= 0
                         implicitWidth: badge.implicitWidth + 12
                         implicitHeight: 18
                         radius: 9
-
-                        // Główny kontener jest przezroczysty, ma tylko ramkę
                         color: "transparent"
                         border.color: Kirigami.Theme.highlightColor
-                        border.width: 1
 
-                        // Ten wewnętrzny prostokąt robi za półprzezroczyste tło (alpha = 0.22)
                         Rectangle {
                             anchors.fill: parent
                             radius: parent.radius
                             color: Kirigami.Theme.highlightColor
                             opacity: 0.22
                         }
-
                         Label {
                             id: badge
                             anchors.centerIn: parent
@@ -539,6 +507,7 @@ Item {
                     }
 
                     Kirigami.Icon {
+                        Layout.alignment: Qt.AlignVCenter
                         source: filtersHeader.sectionExpanded ? "arrow-up-symbolic" : "arrow-down-symbolic"
                         implicitWidth: 12
                         implicitHeight: 12
@@ -546,139 +515,69 @@ Item {
                     }
                 }
 
-                onClicked: sectionExpanded = !sectionExpanded
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: filtersHeader.sectionExpanded = !filtersHeader.sectionExpanded
+                }
             }
 
-            // Siatka filtrów (animowane rozwijanie)
-            Item {
+            // Rozwijana lista
+            Rectangle {
                 Layout.fillWidth: true
                 Layout.leftMargin: 12
                 Layout.rightMargin: 12
+
+                color: Qt.rgba(0, 0, 0, 0.25)
+                border.color: Qt.rgba(1, 1, 1, 0.05)
+                border.width: 1
+                radius: 6
                 clip: true
-                height: filtersHeader.sectionExpanded ? filterGrid.implicitHeight + 10 : 0
-                Behavior on height {
+
+                visible: Layout.preferredHeight > 0
+                Layout.preferredHeight: filtersHeader.sectionExpanded ? Math.min(filterList.contentHeight + 8, 220) : 0
+
+                Behavior on Layout.preferredHeight {
                     NumberAnimation {
                         duration: 220
                         easing.type: Easing.OutCubic
                     }
                 }
 
-                GridView {
-                    id: filterGrid
-                    anchors {
-                        top: parent.top
-                        topMargin: 4
-                        left: parent.left
-                        right: parent.right
-                    }
-                    interactive: false
-                    implicitHeight: contentHeight
-                    cellWidth: Math.floor(width / 3)
-                    cellHeight: Math.floor(cellWidth * 0.68) + 22
-
+                ListView {
+                    id: filterList
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    interactive: true
+                    spacing: 2
                     model: DetailViewModel.lutFiltersListModel
 
-                    delegate: Item {
-                        width: filterGrid.cellWidth
-                        height: filterGrid.cellHeight
+                    delegate: ItemDelegate {
+                        width: filterList.width
+                        required property int index
+                        required property var model
 
-                        readonly property bool isActive: previewFilterIndex === index
-
-                        readonly property color sepColor: Kirigami.Theme.separatorColor
-
-                        Rectangle {
-                            anchors {
-                                fill: parent
-                                margins: 3
-                            }
-                            radius: 5
-                            color: "transparent"
-                            border.width: isActive ? 2 : 1
-                            border.color: isActive ? Kirigami.Theme.highlightColor : Qt.rgba(sepColor.r, sepColor.g, sepColor.b, 0.5)
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: parent.radius
-                                color: Kirigami.Theme.highlightColor
-                                opacity: isActive ? 0.18 : 0.0
-                                Behavior on opacity {
-                                    NumberAnimation {
-                                        duration: 120
-                                    }
-                                }
-                            }
-
-                            ColumnLayout {
-                                anchors {
-                                    fill: parent
-                                    margins: 4
-                                }
-                                spacing: 3
-
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    clip: true
-
-                                    Image {
-                                        anchors.fill: parent
-                                        source: model.previewUrl || ""
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        visible: status === Image.Ready
-                                    }
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        visible: parent.children[0].status !== Image.Ready
-                                        color: Kirigami.Theme.alternateBackgroundColor
-                                        radius: 3
-                                        Label {
-                                            anchors.centerIn: parent
-                                            text: "◧"
-                                            font.pointSize: 13
-                                            color: Kirigami.Theme.disabledTextColor
-                                            opacity: 0.5
-                                        }
-                                    }
-                                }
-
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: model.name || qsTr("Filtr")
-                                    font.pointSize: 7
-                                    elide: Text.ElideRight
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: isActive ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                // Toggle: klik na aktywny odznacza go
-                                onClicked: previewFilterIndex = isActive ? -1 : index
-                            }
-                        }
+                        highlighted: previewFilterIndex === index
+                        text: model.name || qsTr("Filtr")
+                        onClicked: previewFilterIndex = previewFilterIndex === index ? -1 : index
                     }
                 }
             }
 
+            // Wypełniacz wypychający elementy do góry
             Item {
                 Layout.fillHeight: true
                 Layout.minimumHeight: 16
             }
 
-            // ════════════════════════════════════════════════════════════
-            //  Przyciski akcji
-            // ════════════════════════════════════════════════════════════
+            // ── PRZYCISKI AKCJI ───────────────────────────────────────
             Kirigami.Separator {
                 Layout.fillWidth: true
             }
 
             GridLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
+                Layout.margins: 12
                 Layout.topMargin: 10
                 Layout.bottomMargin: 16
                 columns: 2

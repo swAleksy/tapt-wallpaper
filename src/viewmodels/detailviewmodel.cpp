@@ -80,7 +80,22 @@ void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation
 
 void DetailViewModel::revertChanges()
 {
-    //todo
+    m_current = m_committed;
+
+    std::optional<LutData> lutOpt;
+    if (m_current.activeFilterIndex >= 0) {
+        QString path = m_lutFiltersListModel->lutPath(m_current.activeFilterIndex);
+        lutOpt = LutService::load(path);
+    }
+    m_lutService->applyChangesAsync(m_originalImage, m_current.hue, m_current.brightness,
+                                     m_current.saturation, lutOpt.value_or(LutData{}));
+
+    emit hueChanged();
+    emit brightnessChanged();
+    emit saturationChanged();
+    emit flippedChanged();
+    emit activeFilterIndexChanged();
+    emit stateReverted();
 }
 
 void DetailViewModel::setAsWallpaper()

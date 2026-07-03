@@ -13,14 +13,12 @@ class LutFiltersListModel : public QAbstractListModel
 public:
     enum Roles {
         NameRole       = Qt::UserRole + 1,
-        PreviewUrlRole,   // miniaturka z folderu z LUT-ami
         LutPathRole       // pełna ścieżka do .cube
     };
     Q_ENUM(Roles)
 
     struct FilterItem {
         QString name;
-        QUrl    previewUrl;
         QString lutPath;
     };
 
