@@ -117,7 +117,8 @@ Item {
 
                 // DODANE: Wymuszenie ładowania oryginalnej rozdzielczości
                 // Zamiast polegać na cache miniatury, instruujemy QML, jakiej wielkości potrzebujemy
-                sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+                //sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+                sourceSize: Qt.size(Math.round(width), Math.round(height))
                 cache: false // Alternatywnie, wyłącza użycie wersji zbuforowanej dla miniatury
             }
 
@@ -143,9 +144,15 @@ Item {
                 anchors.fill: popupBase
                 property variant sourceImage: effectSource
                 property variant lutTexture: Image {
-                    source: previewFilterIndex >= 0 ? "image://lut/" + DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex) : ""
+                    source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
                 }
-                property real lutSize: 33.0
+                // property real lutSize: {
+                //     if (DetailViewModel.activeFilterIndex >= 0) {
+                //         return DetailViewModel.lutFiltersListModel.filterSize(DetailViewModel.activeFilterIndex);
+                //     }
+                //     return 33.0;
+                // }
+                property real lutSize: previewFilterIndex >= 0 ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex) : 33.0
                 property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
                 property real hue: previewHue
                 fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
@@ -254,9 +261,17 @@ Item {
                     anchors.fill: thumbBase
                     property variant sourceImage: thumbEffectSource
                     property variant lutTexture: Image {
-                        source: previewFilterIndex >= 0 ? "image://lut/" + DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex) : ""
+                        source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
                     }
-                    property real lutSize: 33.0
+                    // property real lutSize: {
+                    //     if (DetailViewModel.activeFilterIndex >= 0) {
+                    //         return DetailViewModel.lutFiltersListModel.filterSize(DetailViewModel.activeFilterIndex);
+                    //     }
+                    //     return 33.0;
+                    // }
+
+                    property real lutSize: previewFilterIndex >= 0 ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex) : 33.0
+
                     property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
                     property real hue: previewHue
                     fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"

@@ -1,4 +1,5 @@
 #include <QQuickImageProvider>
+#include <QUrl> // <-- Upewnij się, że masz ten nagłówek
 #include "lutservice.h"
 
 class LutImageProvider : public QQuickImageProvider
@@ -8,10 +9,11 @@ public:
 
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override
     {
-        // 'id' to będzie ścieżka do pliku .cube przekazana z QML
-        // Np. jeśli w QML wpiszemy "image://lut/C:/filtry/ColdChrome.cube"
+        // 1. Odkodowanie bezpiecznego adresu URL z powrotem na normalną ścieżkę (np. ":/luts/filtr.cube")
+        const QString decodedPath = QUrl::fromPercentEncoding(id.toUtf8());
 
-        auto lutData = LutService::load(id);
+        // 2. Wczytanie odkodowanej ścieżki
+        auto lutData = LutService::load(decodedPath);
         if (!lutData) {
             return QImage(); // Jeśli plik nie istnieje, zwróć pusty obraz
         }

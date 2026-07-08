@@ -1,12 +1,14 @@
 #include "lutfilterslistmodel.h"
-#include <qdiriterator.h>
+#include <QDirIterator>
+#include <QFile>
+#include <QTextStream>
+#include <QFileInfo>
 
 LutFiltersListModel::LutFiltersListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
 }
 
-// Liczba elementów na liście (potrzebne dla QML)
 int LutFiltersListModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
@@ -26,22 +28,22 @@ QVariant LutFiltersListModel::data(const QModelIndex &index, int role) const
         return item.name;
     case LutPathRole:
         return item.lutPath;
+    case SizeRole: // <-- Dodana obsługa roli w data()
+        return item.size;
     }
 
     return QVariant();
 }
 
-
-// Mapowanie ról na stringi, których użyjesz w QML (np. model.name, model.previewUrl)
 QHash<int, QByteArray> LutFiltersListModel::roleNames() const
 {
     QHash<int, QByteArray> roles;
     roles[NameRole] = "name";
     roles[LutPathRole] = "lutPath";
+    roles[SizeRole] = "size"; // <-- Rejestracja roli dla QML (użycie jako model.size)
     return roles;
 }
 
-// Metody Q_INVOKABLE, o które krzyczy linker
 QString LutFiltersListModel::filterName(int index) const
 {
     if (index < 0 || index >= m_items.count())
@@ -56,25 +58,60 @@ QString LutFiltersListModel::lutPath(int index) const
     return m_items[index].lutPath;
 }
 
+int LutFiltersListModel::filterSize(int index) const
+{
+    if (index < 0 || index >= m_items.count())
+        return 0;
+    return m_items[index].size;
+}
+
 void LutFiltersListModel::loadFromDirectory(const QString &dir)
 {
     QDirIterator it(dir, {"*.cube"}, QDir::Files);
     QList<FilterItem> items;
+
     while (it.hasNext()) {
         it.next();
         QFileInfo fi = it.fileInfo();
         FilterItem item;
-        item.name    = fi.baseName();
-        //item.lutPath = fi.absoluteFilePath();
+        item.name = fi.baseName();
         item.lutPath = it.filePath();
-        // previewUrl: szukaj pliku .png o tej samej nazwie obok .cube
-        // QString pngPath = fi.absolutePath() + "/" + fi.baseName() + ".png";
-        // item.previewUrl = QFile::exists(pngPath)
-        //                   ? QUrl::fromLocalFile(pngPath)
-        //                   : QUrl{};
-        QString pngPath = ":/luts/" + fi.baseName() + ".png";  // bezpieczna, jawna ścieżka
+        item.size = 0; // Wartość domyślna, jeśli plik będzie uszkodzony
+
+        // --- Parsowanie pliku .cube w poszukiwaniu rozmiaru ---
+        QFile file(it.filePath());
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            while (!in.atEnd()) {
+                QString line = in.readLine().trimmed();
+
+                // Szukamy linijki zaczynającej się od rozmiaru tablicy 3D lub 1D
+                if (line.startsWith("LUT_3D_SIZE") || line.startsWith("LUT_1D_SIZE")) {
+                    // simplified() zamienia tabulatory i wielokrotne spacje na pojedynczą spację
+                    QStringList tokens = line.simplified().split(' ');
+                    if (tokens.size() >= 2) {
+                        bool ok;
+                        int parsedSize = tokens[1].toInt(&ok);
+                        if (ok) {
+                            item.size = parsedSize;
+                        }
+                    }
+                    break; // Rozmiar znaleziony, nie ma sensu czytać reszty (często ogromnego) pliku
+                }
+
+                // Optymalizacja: Jeśli natrafimy na pierwszą liczbę (dane LUT),
+                // a nie znaleźliśmy nagłówka, to znaczy, że metadanych już nie ma.
+                if (!line.isEmpty() && line[0].isDigit()) {
+                    break;
+                }
+            }
+            file.close();
+        }
+        // -----------------------------------------------------
+
         items.append(item);
     }
+
     beginResetModel();
     m_items = items;
     endResetModel();

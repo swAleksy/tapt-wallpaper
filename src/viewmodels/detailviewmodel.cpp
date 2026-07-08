@@ -10,7 +10,7 @@ DetailViewModel::DetailViewModel(QObject *parent)
         m_lutProcessed = result;
         m_busy = false;
         emit busyChanged();
-        emit imageUrlChanged();
+        // emit imageUrlChanged();
     });
     connect(m_lutService, &LutService::lutFailed, this, [this](const QString &err) {
         m_busy = false;
@@ -24,56 +24,77 @@ void DetailViewModel::setImage(const QString &url, const QString &name)
 {
     bool urlChanged  = (m_imageUrl  != url);
     bool nameChanged = (m_imageName != name);
-    if (!urlChanged && !nameChanged)
-        return;
+    if (!urlChanged && !nameChanged) return;
+
+    m_lutService->cancel();
 
     bool wasEmpty = m_imageUrl.isEmpty();
-    m_imageUrl    = url;
-    m_imageName   = name;
+    m_imageUrl  = url;
+    m_imageName = name;
 
-    m_originalImage = QImage(url);
+    QString localPath = url;
+    const QString prefix = QStringLiteral("image://taptimage/");
+    if (localPath.startsWith(prefix))
+        localPath.remove(0, prefix.size());
+    else if (localPath.startsWith("file://"))
+        localPath = QUrl(localPath).toLocalFile();
+
+    m_originalImage = QImage(localPath);
+    if (m_originalImage.isNull())
+        qWarning() << "DetailViewModel: nie udało się wczytać" << localPath;
+
+    emit hasImageChanged();
+
+    m_current   = ColorState{};
+    m_committed = ColorState{};
+    m_lutProcessed = QImage();
 
     if (urlChanged)  emit imageUrlChanged();
     if (nameChanged) emit imageNameChanged();
     if (wasEmpty != m_imageUrl.isEmpty()) emit hasImageChanged();
-
-    emit imageLoaded();
-}
-
-
-void DetailViewModel::clear()
-{
-    setImage("", "");
-
-    m_current = ColorState{};
-    m_committed = ColorState{};
 
     emit hueChanged();
     emit brightnessChanged();
     emit saturationChanged();
     emit flippedChanged();
     emit activeFilterIndexChanged();
+
+    emit imageLoaded();
 }
+
+
+// void DetailViewModel::clear()
+// {
+//     setImage("", "");
+
+//     m_current = ColorState{};
+//     m_committed = ColorState{};
+
+//     emit hueChanged();
+//     emit brightnessChanged();
+//     emit saturationChanged();
+//     emit flippedChanged();
+//     emit activeFilterIndexChanged();
+// }
 
 void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation, bool flipped, int filterIndex)
 {
-    m_committed = m_current;   // zapisz poprzedni stan do revert
+    m_committed = m_current;
+    m_current   = { hue, brightness, saturation, flipped, filterIndex };
 
-    m_current.hue = hue;
-    m_current.brightness = brightness;
-    m_current.saturation = saturation;
-    m_current.flipped = flipped;
-    m_current.activeFilterIndex = filterIndex;
+    emit hueChanged();
+    emit brightnessChanged();
+    emit saturationChanged();
+    emit flippedChanged();
+    emit activeFilterIndexChanged();
 
-    reprocessAsync();
+    // reprocessAsync(); podgląd tylko przez qml/gpu
 }
 
 void DetailViewModel::revertChanges()
 {
-    m_current = m_committed;
 
-    reprocessAsync();
-
+    // reprocessAsync();
     emit stateReverted();
 }
 
@@ -89,7 +110,7 @@ void DetailViewModel::reprocessAsync()
     m_busy = true;
     emit busyChanged();
 
-    m_lutService->applyChangesAsync(m_originalImage, m_current.hue, m_current.brightness, m_current.saturation, lutPath);
+    m_lutService->applyChangesAsync(m_originalImage, m_current.hue, m_current.brightness, m_current.saturation, m_current.flipped, lutPath);
 
     emit hueChanged();
     emit brightnessChanged();

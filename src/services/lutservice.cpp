@@ -50,7 +50,7 @@ std::optional<LutData> LutService::load(const QString &path)
     return lut;
 }
 
-QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, double bOffset, double sOffset, const LutData *lut)
+QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, double bOffset, double sOffset, bool flipped, const LutData *lut)
 {
     QImage rgbImg = source.convertToFormat(QImage::Format_RGB888).copy();
     cv::Mat mat(rgbImg.height(), rgbImg.width(), CV_8UC3, (void*)rgbImg.bits(), rgbImg.bytesPerLine());
@@ -84,11 +84,18 @@ QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, 
     cv::merge(channels, cvtMat);
     cv::cvtColor(cvtMat, cvtMat, cv::COLOR_HSV2RGB);
 
+
+
     QImage result((const uchar*) cvtMat.data, cvtMat.cols, cvtMat.rows, cvtMat.step, QImage::Format_RGB888);
+
+    if (flipped) {
+        result = result.mirrored(true /*horizontal*/, false);
+    }
+
     result = result.copy();
 
 
-    if (lut && lut->size > 0) {
+    if (lut && lut->size > 0 && !lut->table.isEmpty()) {
         result = LutService::apply(result, *lut);
     }
 
@@ -96,7 +103,7 @@ QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, 
     return result;
 }
 
-void LutService::applyChangesAsync(const QImage &source, double hOffset, double bOffset, double sOffset, const QString &lutPath)
+void LutService::applyChangesAsync(const QImage &source, double hOffset, double bOffset, double sOffset, bool flipped, const QString &lutPath)
 {
     // NOWE — "flaga abort": unieważnij poprzednie zadanie, zanim wystartuje nowe.
     // Jeśli poprzednie jeszcze siedziało w kolejce QThreadPool i się nie zaczęło,
@@ -105,7 +112,7 @@ void LutService::applyChangesAsync(const QImage &source, double hOffset, double 
     // pozwalają zrezygnować z reszty pracy (parsowanie LUT-a, emit sygnału).
     m_watcher.future().cancel();
 
-    auto future = QtConcurrent::run([source, hOffset, bOffset, sOffset, lutPath](QPromise<QImage> &promise) {
+    auto future = QtConcurrent::run([this, source, hOffset, bOffset, sOffset, flipped, lutPath](QPromise<QImage> &promise) {
         if (promise.isCanceled())
             return;
 
@@ -113,14 +120,34 @@ void LutService::applyChangesAsync(const QImage &source, double hOffset, double 
         // (dawniej robione synchronicznie w DetailViewModel::applyChanges na wątku UI).
         LutData lut;
         if (!lutPath.isEmpty()) {
-            if (auto lutOpt = LutService::load(lutPath))
-                lut = *lutOpt;
+            bool foundInCache = false;
+
+            // 1. SPRAWDZAMY CACHE
+            {
+                // Zamykamy mutex na czas odczytu
+                QMutexLocker locker(&m_lutCacheMutex);
+                if (m_lutCache.contains(lutPath)) {
+                    lut = m_lutCache.value(lutPath);
+                    foundInCache = true;
+                }
+            } // <- Tutaj (na końcu klamry) mutex automatycznie się odblokowuje
+
+            // 2. JEŚLI NIE BYŁO W CACHE, WCZYTUJEMY Z DYSKU
+            if (!foundInCache) {
+                if (auto lutOpt = LutService::load(lutPath)) {
+                    lut = *lutOpt;
+
+                    // Zapisujemy do cache na przyszłość (znów zamykamy mutex)
+                    QMutexLocker locker(&m_lutCacheMutex);
+                    m_lutCache.insert(lutPath, lut);
+                }
+            }
         }
 
         if (promise.isCanceled())
             return;
 
-        QImage result = processWallpaperOpenCV(source, hOffset, bOffset, sOffset, &lut);
+        QImage result = processWallpaperOpenCV(source, hOffset, bOffset, sOffset, flipped, &lut);
 
         if (promise.isCanceled())
             return;
@@ -154,6 +181,11 @@ QImage LutService::apply(const QImage &src, const LutData &lut)
         }
     }
     return dst;
+}
+
+void LutService::cancel()
+{
+    m_watcher.future().cancel();
 }
 
 QImage LutService::lutToTex(const LutData &lut)

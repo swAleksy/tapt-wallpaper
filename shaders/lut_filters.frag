@@ -36,6 +36,7 @@ vec3 hsv2rgb(vec3 c)
 void main()
 {
     vec4 baseColor = texture(sourceImage, qt_TexCoord0);
+    //float ubuf.lutSize = float(textureSize(lutTexture, 0).y);
 
     // NOWE: obrót barwy — ta sama konwencja co w LutService::processWallpaperOpenCV
     // (tam hue*180° w przestrzeni HSV; tutaj hue jest znormalizowane do pełnego koła = 1.0,
@@ -54,7 +55,7 @@ void main()
 
     vec2 quad2;
     quad2.y = floor(ceil(blueColor) / ubuf.lutSize);
-    quad2.x = ceil(blueColor) - (quad2.y * ubuf.lutSize);
+    quad2.x = min(ceil(blueColor), ubuf.lutSize - 1.0) - (quad2.y * ubuf.lutSize);
 
     vec2 texPos1;
     texPos1.x = (quad1.x * ubuf.lutSize) + 0.5 + ((ubuf.lutSize - 1.0) * baseColor.r);

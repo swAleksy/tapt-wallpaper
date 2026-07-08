@@ -4,7 +4,6 @@
 #include <QObject>
 #include <qqml.h>
 #include <QString>
-#include <qtypes.h>
 #include <QImage>
 #include "lutfilterslistmodel.h"
 #include "lutservice.h"
@@ -39,7 +38,7 @@ public:
 
     QString imageUrl()          const { return m_imageUrl; }
     QString imageName()         const { return m_imageName; }
-    bool    hasImage()          const { return !m_imageUrl.isEmpty(); }
+    bool    hasImage()          const { return !m_imageUrl.isEmpty() && !m_originalImage.isNull(); }
     qreal   hue()               const { return m_current.hue; }
     qreal   brightness()        const { return m_current.brightness; }
     qreal   saturation()        const { return m_current.saturation; }
@@ -48,7 +47,7 @@ public:
     bool    busy()               const { return m_busy; }
     LutFiltersListModel* lutFiltersListModel() const { return m_lutFiltersListModel; }
 
-    void clear();
+    // void clear();
 
     Q_INVOKABLE void setImage(const QString &url, const QString &name);
 

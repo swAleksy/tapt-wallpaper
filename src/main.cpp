@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
-    engine.addImageProvider(QLatin1String("taptimage"), new TaptImageProvider);
+    engine.addImageProvider(QLatin1String("taptimage"), new TaptImageProvider());
     engine.addImageProvider(QStringLiteral("lut"), new LutImageProvider());
     engine.loadFromModule("org.kde.taptwallpaper", "Main");
 
