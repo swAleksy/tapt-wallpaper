@@ -80,5 +80,5 @@ _deps/
 compile_commands.json
 
 # luts
-.cube
-.cube luts
+*.cube
+*.cube luts

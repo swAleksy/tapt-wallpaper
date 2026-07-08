@@ -3,14 +3,18 @@
 DetailViewModel::DetailViewModel(QObject *parent)
     : QObject(parent)
     , m_lutFiltersListModel(new LutFiltersListModel(this))
-    , m_lutService(new LutService(this))   // ← brakuje
+    , m_lutService(new LutService(this))
 {
     connect(m_lutService, &LutService::lutApplied, this, [this](const QImage &result) {
         // zapisz m_lutProcessed, zaktualizuj imageUrl przez tymczasowy provider
         m_lutProcessed = result;
+        m_busy = false;
+        emit busyChanged();
         emit imageUrlChanged();
     });
     connect(m_lutService, &LutService::lutFailed, this, [this](const QString &err) {
+        m_busy = false;
+        emit busyChanged();
         qWarning() << "LUT failed:" << err;
     });
     m_lutFiltersListModel->loadFromDirectory(":/luts");
@@ -61,41 +65,37 @@ void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation
     m_current.flipped = flipped;
     m_current.activeFilterIndex = filterIndex;
 
-    // Pobierz LUT jeśli wybrany
-    std::optional<LutData> lutOpt;
-    if (filterIndex >= 0) {
-        QString path = m_lutFiltersListModel->lutPath(filterIndex);
-        lutOpt = LutService::load(path);
-    }
-
-    LutData lut = lutOpt.value_or(LutData{});
-    m_lutService->applyChangesAsync(m_originalImage, hue, brightness, saturation, lut);
-
-    emit hueChanged();
-    emit brightnessChanged();
-    emit saturationChanged();
-    emit flippedChanged();
-    emit activeFilterIndexChanged();
+    reprocessAsync();
 }
 
 void DetailViewModel::revertChanges()
 {
     m_current = m_committed;
 
-    std::optional<LutData> lutOpt;
-    if (m_current.activeFilterIndex >= 0) {
-        QString path = m_lutFiltersListModel->lutPath(m_current.activeFilterIndex);
-        lutOpt = LutService::load(path);
-    }
-    m_lutService->applyChangesAsync(m_originalImage, m_current.hue, m_current.brightness,
-                                     m_current.saturation, lutOpt.value_or(LutData{}));
+    reprocessAsync();
+
+    emit stateReverted();
+}
+
+void DetailViewModel::reprocessAsync()
+{
+    // ZMIANA: przekazujemy tylko ścieżkę do .cube — samo wczytanie/parsowanie pliku
+    // dzieje się teraz na wątku roboczym wewnątrz LutService::applyChangesAsync,
+    // zamiast blokować wątek UI tak jak poprzednio.
+    const QString lutPath = m_current.activeFilterIndex >= 0
+        ? m_lutFiltersListModel->lutPath(m_current.activeFilterIndex)
+        : QString();
+
+    m_busy = true;
+    emit busyChanged();
+
+    m_lutService->applyChangesAsync(m_originalImage, m_current.hue, m_current.brightness, m_current.saturation, lutPath);
 
     emit hueChanged();
     emit brightnessChanged();
     emit saturationChanged();
     emit flippedChanged();
     emit activeFilterIndexChanged();
-    emit stateReverted();
 }
 
 void DetailViewModel::setAsWallpaper()

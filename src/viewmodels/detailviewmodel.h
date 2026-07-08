@@ -2,7 +2,6 @@
 #define DETAILVIEWMODEL_H
 
 #include <QObject>
-#include <QFutureWatcher>
 #include <qqml.h>
 #include <QString>
 #include <qtypes.h>
@@ -25,6 +24,7 @@ class DetailViewModel : public QObject
     Q_PROPERTY(qreal   saturation        READ saturation        NOTIFY saturationChanged)
     Q_PROPERTY(bool    flipped           READ flipped           NOTIFY flippedChanged)
     Q_PROPERTY(int     activeFilterIndex READ activeFilterIndex NOTIFY activeFilterIndexChanged)
+    Q_PROPERTY(bool    busy              READ busy              NOTIFY busyChanged) // NOWE: true, gdy LutService przetwarza obraz w tle
 
     // Model filtrów/LUT — role: name (QString), previewUrl (QUrl), lutPath (QString)
     Q_PROPERTY(LutFiltersListModel* lutFiltersListModel READ lutFiltersListModel CONSTANT)
@@ -45,6 +45,7 @@ public:
     qreal   saturation()        const { return m_current.saturation; }
     bool    flipped()           const { return m_current.flipped; }
     int     activeFilterIndex() const { return m_current.activeFilterIndex; }
+    bool    busy()               const { return m_busy; }
     LutFiltersListModel* lutFiltersListModel() const { return m_lutFiltersListModel; }
 
     void clear();
@@ -66,11 +67,15 @@ signals:
     void saturationChanged();
     void flippedChanged();
     void activeFilterIndexChanged();
+    void busyChanged();
 
     void stateReverted();
     void imageLoaded();
 
 private:
+    void reprocessAsync(); // wspólna logika applyChanges()/revertChanges(): wybiera ścieżkę LUT-a,
+                            // ustawia busy i odpala LutService::applyChangesAsync
+
     LutFiltersListModel *m_lutFiltersListModel;
     LutService *m_lutService;
 
@@ -85,7 +90,7 @@ private:
 
     QImage m_originalImage;    // wczytany raz, nigdy nie ruszany
     QImage m_lutProcessed;     // wynik LUT, cache — nie przeliczaj przy każdym HSB sliderze
-    QFutureWatcher<QImage> m_lutWatcher;
+    bool   m_busy = false;     // USUNIĘTO: nieużywane QFutureWatcher<QImage> m_lutWatcher (LutService ma własny)
 
     ColorState m_current;
     ColorState m_committed;

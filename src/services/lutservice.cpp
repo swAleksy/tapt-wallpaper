@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QtConcurrent>
+#include <QPromise>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -10,6 +11,11 @@ LutService::LutService(QObject *parent)
 {
     connect(&m_watcher, &QFutureWatcher<QImage>::finished,
             this, [this]() {
+                // ZMIANA: zadanie unieważnione przez nowsze żądanie (patrz applyChangesAsync)
+                // — nie jest to błąd, po prostu wynik nikogo już nie interesuje.
+                if (m_watcher.isCanceled())
+                    return;
+
                 QImage result = m_watcher.result();
                     if (!result.isNull()) {
                         emit lutApplied(result);
@@ -60,18 +66,14 @@ QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, 
     int cvSatOffset = static_cast<int>(sOffset * 255.0);
     int cvValOffset = static_cast<int>(bOffset * 255.0);
 
-    // ZMIANA 2: Poprawna matematyka dla HUE (z zawijaniem na kole 0-179)
     if (cvHueOffset != 0) {
-        // Używamy super-wydajnej funkcji OpenCV forEach do bezpośredniej modyfikacji pamięci
-        // channels[0].forEach<uchar>([cvHueOffset](uchar &pixel, const int * position) -> void {
+
         channels[0].forEach<uchar>([cvHueOffset](uchar &pixel, const int * /*position*/) -> void {
-            // Dodajemy 180, aby uniknąć liczb ujemnych w modulo przy suwaku na minus
             int newHue = (static_cast<int>(pixel) + cvHueOffset + 180) % 180;
             pixel = static_cast<uchar>(newHue);
         });
     }
 
-    // Saturation i Value mogą używać cv::add, bo tam chcemy, żeby wartości zatrzymały się na bieli/czerni
     if (cvSatOffset != 0) {
         cv::add(channels[1], cvSatOffset, channels[1]);
     }
@@ -85,8 +87,6 @@ QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, 
     QImage result((const uchar*) cvtMat.data, cvtMat.cols, cvtMat.rows, cvtMat.step, QImage::Format_RGB888);
     result = result.copy();
 
-    // ZMIANA 3: Założyłem, że metoda apply() jest zdefiniowana niżej lub w innej części kodu.
-    // Upewnij się, że faktycznie masz metodę LutService::apply!
 
     if (lut && lut->size > 0) {
         result = LutService::apply(result, *lut);
@@ -96,13 +96,36 @@ QImage LutService::processWallpaperOpenCV(const QImage &source, double hOffset, 
     return result;
 }
 
-void LutService::applyChangesAsync(const QImage &source, double hOffset, double bOffset, double sOffset, const LutData lut)
+void LutService::applyChangesAsync(const QImage &source, double hOffset, double bOffset, double sOffset, const QString &lutPath)
 {
-    // ZMIANA 4: Użycie poprawnej nazwy funkcji wewnątrz QtConcurrent
-    auto future = QtConcurrent::run([source, hOffset, bOffset, sOffset, lut]() -> QImage {
-        // UWAGA Z ARCHITEKTURY: Pamiętaj, że "lut" to wskaźnik. Obiekt na który wskazuje
-        // nie może zostać usunięty przez główny wątek, dopóki ten podwątek się nie zakończy!
-        return processWallpaperOpenCV(source, hOffset, bOffset, sOffset, &lut);
+    // NOWE — "flaga abort": unieważnij poprzednie zadanie, zanim wystartuje nowe.
+    // Jeśli poprzednie jeszcze siedziało w kolejce QThreadPool i się nie zaczęło,
+    // zostanie w ogóle pominięte. Jeśli już się liczy, i tak nie da się przerwać
+    // pojedynczego wywołania OpenCV w środku, ale sprawdzenia isCanceled() poniżej
+    // pozwalają zrezygnować z reszty pracy (parsowanie LUT-a, emit sygnału).
+    m_watcher.future().cancel();
+
+    auto future = QtConcurrent::run([source, hOffset, bOffset, sOffset, lutPath](QPromise<QImage> &promise) {
+        if (promise.isCanceled())
+            return;
+
+        // ZMIANA: wczytanie/parsowanie pliku .cube przeniesione tutaj — to blokujące I/O
+        // (dawniej robione synchronicznie w DetailViewModel::applyChanges na wątku UI).
+        LutData lut;
+        if (!lutPath.isEmpty()) {
+            if (auto lutOpt = LutService::load(lutPath))
+                lut = *lutOpt;
+        }
+
+        if (promise.isCanceled())
+            return;
+
+        QImage result = processWallpaperOpenCV(source, hOffset, bOffset, sOffset, &lut);
+
+        if (promise.isCanceled())
+            return;
+
+        promise.addResult(result);
     });
 
     m_watcher.setFuture(future);

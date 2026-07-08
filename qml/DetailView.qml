@@ -147,6 +147,7 @@ Item {
                 }
                 property real lutSize: 33.0
                 property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
+                property real hue: previewHue
                 fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
             }
         }
@@ -257,6 +258,7 @@ Item {
                     }
                     property real lutSize: 33.0
                     property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
+                    property real hue: previewHue
                     fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
                 }
 
