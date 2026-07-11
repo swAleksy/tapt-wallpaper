@@ -1,25 +1,24 @@
 #include "galleryviewmodel.h"
-#include <qobject.h>
 #include <QUrl>
 #include <QtConcurrent>
+#include <qobject.h>
 
-GalleryViewModel::GalleryViewModel(QObject *parent)
+GalleryViewModel::GalleryViewModel(QObject* parent)
     : QObject(parent)
     , m_service(std::make_shared<GalleryService>())
     , m_model(new ImagesModel(this))
-    {
-        connect(&m_scanWatcher, &QFutureWatcher<QList<ImageItem>>::finished, this, [this]() {
-            m_allItems = m_scanWatcher.result();
-            m_loadedCount = 0;
-            setIsLoading(false);
-            loadNextBatch();
-        });
-    }
+{
+    connect(&m_scanWatcher, &QFutureWatcher<QList<ImageItem>>::finished, this, [this]() {
+        m_allItems = m_scanWatcher.result();
+        m_loadedCount = 0;
+        setIsLoading(false);
+        loadNextBatch();
+    });
+}
 
-GalleryViewModel::~GalleryViewModel()
-{}
+GalleryViewModel::~GalleryViewModel() { }
 
-void GalleryViewModel::loadFolder(const QUrl &folderUrl)
+void GalleryViewModel::loadFolder(const QUrl& folderUrl)
 {
     const QString path = folderUrl.toLocalFile();
     if (path.isEmpty() || m_isLoading)
@@ -37,17 +36,18 @@ void GalleryViewModel::loadFolder(const QUrl &folderUrl)
     setIsLoading(true);
 
     std::shared_ptr<GalleryService> service = m_service;
-    m_scanWatcher.setFuture(QtConcurrent::run([service, path]() {
-        return service->scanFolder(path);
-    }));
+    m_scanWatcher.setFuture(QtConcurrent::run([service, path]() { return service->scanFolder(path); }));
 }
 
 void GalleryViewModel::loadNextBatch()
 {
+
     if (m_isLoading || m_allItems.isEmpty())
         return;
     if (m_loadedCount >= m_allItems.count())
         return;
+
+    setIsLoading(true);
 
     QList<ImageItem> batch = m_allItems.mid(m_loadedCount, BATCH_SIZE);
     m_model->appendImages(batch);
@@ -59,17 +59,17 @@ void GalleryViewModel::loadNextBatch()
 
 void GalleryViewModel::selectImage(int index)
 {
+    QModelIndex modelIndex = m_model->index(index, 0);
+    if (!modelIndex.isValid())
+        return;
+
     if (m_selectedIndex != index) {
         m_selectedIndex = index;
         emit selectedIndexChanged();
     }
 
-    QModelIndex modelIndex = m_model->index(index, 0);
-    if (!modelIndex.isValid())
-        return;
-
-    QString url  = m_model->data(modelIndex, ImagesModel::UrlRole).toString();
-    QString name = m_model->data(modelIndex, ImagesModel::NameRole).toString();
+    const QString url = m_model->data(modelIndex, ImagesModel::UrlRole).toString();
+    const QString name = m_model->data(modelIndex, ImagesModel::NameRole).toString();
     emit imageSelected(url, name);
 }
 
@@ -91,7 +91,7 @@ void GalleryViewModel::setImageCount(int value)
     emit isEmptyChanged();
 }
 
-void GalleryViewModel::setErrorMessage(const QString &value)
+void GalleryViewModel::setErrorMessage(const QString& value)
 {
     if (m_errorMessage == value)
         return;

@@ -38,7 +38,8 @@ public:
 
     QString imageUrl()          const { return m_imageUrl; }
     QString imageName()         const { return m_imageName; }
-    bool    hasImage()          const { return !m_imageUrl.isEmpty() && !m_originalImage.isNull(); }
+    // bool    hasImage()          const { return !m_imageUrl.isEmpty() && !m_originalImage.isNull(); }
+    bool    hasImage() const { return !m_imageUrl.isEmpty() && m_originalImageValid; }
     qreal   hue()               const { return m_current.hue; }
     qreal   brightness()        const { return m_current.brightness; }
     qreal   saturation()        const { return m_current.saturation; }
@@ -87,12 +88,16 @@ private:
         int   activeFilterIndex = -1;
     };
 
-    QImage m_originalImage;    // wczytany raz, nigdy nie ruszany
-    QImage m_lutProcessed;     // wynik LUT, cache — nie przeliczaj przy każdym HSB sliderze
+    // QImage m_originalImage;    // wczytany raz, nigdy nie ruszany
+
+    QString m_originalImagePath;   // zamiast QImage m_originalImage
+    bool    m_originalImageValid = false;
+
+    // QImage m_lutProcessed;     // wynik LUT, cache — nie przeliczaj przy każdym HSB sliderze
     bool   m_busy = false;     // USUNIĘTO: nieużywane QFutureWatcher<QImage> m_lutWatcher (LutService ma własny)
 
     ColorState m_current;
-    ColorState m_committed;
+    // ColorState m_committed;
 
     QString m_imageUrl;
     QString m_imageName;

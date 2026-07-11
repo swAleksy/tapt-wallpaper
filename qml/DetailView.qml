@@ -144,6 +144,7 @@ Item {
                 anchors.fill: popupBase
                 property variant sourceImage: effectSource
                 property variant lutTexture: Image {
+                    asynchronous: true
                     source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
                 }
                 // property real lutSize: {
@@ -261,6 +262,7 @@ Item {
                     anchors.fill: thumbBase
                     property variant sourceImage: thumbEffectSource
                     property variant lutTexture: Image {
+                        asynchronous: true
                         source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
                     }
                     // property real lutSize: {

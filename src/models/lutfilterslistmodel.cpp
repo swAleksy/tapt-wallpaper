@@ -1,27 +1,27 @@
 #include "lutfilterslistmodel.h"
 #include <QDirIterator>
 #include <QFile>
-#include <QTextStream>
 #include <QFileInfo>
+#include <QTextStream>
 
-LutFiltersListModel::LutFiltersListModel(QObject *parent)
+LutFiltersListModel::LutFiltersListModel(QObject* parent)
     : QAbstractListModel(parent)
 {
 }
 
-int LutFiltersListModel::rowCount(const QModelIndex &parent) const
+int LutFiltersListModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
     return m_items.count();
 }
 
-QVariant LutFiltersListModel::data(const QModelIndex &index, int role) const
+QVariant LutFiltersListModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() >= m_items.count())
         return QVariant();
 
-    const FilterItem &item = m_items[index.row()];
+    const FilterItem& item = m_items[index.row()];
 
     switch (role) {
     case NameRole:
@@ -65,9 +65,9 @@ int LutFiltersListModel::filterSize(int index) const
     return m_items[index].size;
 }
 
-void LutFiltersListModel::loadFromDirectory(const QString &dir)
+void LutFiltersListModel::loadFromDirectory(const QString& dir)
 {
-    QDirIterator it(dir, {"*.cube"}, QDir::Files);
+    QDirIterator it(dir, { "*.cube" }, QDir::Files);
     QList<FilterItem> items;
 
     while (it.hasNext()) {

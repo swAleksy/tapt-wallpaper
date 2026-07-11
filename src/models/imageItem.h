@@ -3,8 +3,7 @@
 
 #include <QString>
 
-struct ImageItem
-{
+struct ImageItem {
     QString url;
     QString name;
 };
