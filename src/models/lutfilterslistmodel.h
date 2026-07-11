@@ -22,7 +22,7 @@ public:
     struct FilterItem {
         QString name;
         QString lutPath;
-        int size;
+        int size = 0;
     };
 
     explicit LutFiltersListModel(QObject *parent = nullptr);

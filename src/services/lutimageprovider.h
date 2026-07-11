@@ -11,7 +11,9 @@ public:
     {
         // 1. Odkodowanie bezpiecznego adresu URL z powrotem na normalną ścieżkę (np. ":/luts/filtr.cube")
         const QString decodedPath = QUrl::fromPercentEncoding(id.toUtf8());
-
+        qDebug() << QString("id (raw)    =") <<  QString(id);
+        qDebug() << QString("decodedPath =") << QString(decodedPath);
+        qDebug() << QString("identyczne? =") << (id == decodedPath);
         // 2. Wczytanie odkodowanej ścieżki
         auto lutData = LutService::load(decodedPath);
         if (!lutData) {

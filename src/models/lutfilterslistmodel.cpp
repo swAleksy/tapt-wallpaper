@@ -76,7 +76,6 @@ void LutFiltersListModel::loadFromDirectory(const QString &dir)
         FilterItem item;
         item.name = fi.baseName();
         item.lutPath = it.filePath();
-        item.size = 0; // Wartość domyślna, jeśli plik będzie uszkodzony
 
         // --- Parsowanie pliku .cube w poszukiwaniu rozmiaru ---
         QFile file(it.filePath());

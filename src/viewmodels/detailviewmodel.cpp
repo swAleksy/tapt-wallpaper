@@ -6,11 +6,8 @@ DetailViewModel::DetailViewModel(QObject *parent)
     , m_lutService(new LutService(this))
 {
     connect(m_lutService, &LutService::lutApplied, this, [this](const QImage &result) {
-        // zapisz m_lutProcessed, zaktualizuj imageUrl przez tymczasowy provider
-        m_lutProcessed = result;
         m_busy = false;
         emit busyChanged();
-        // emit imageUrlChanged();
     });
     connect(m_lutService, &LutService::lutFailed, this, [this](const QString &err) {
         m_busy = false;
@@ -28,7 +25,7 @@ void DetailViewModel::setImage(const QString &url, const QString &name)
 
     m_lutService->cancel();
 
-    bool wasEmpty = m_imageUrl.isEmpty();
+    const bool hadImage = hasImage();
     m_imageUrl  = url;
     m_imageName = name;
 
@@ -43,15 +40,13 @@ void DetailViewModel::setImage(const QString &url, const QString &name)
     if (m_originalImage.isNull())
         qWarning() << "DetailViewModel: nie udało się wczytać" << localPath;
 
-    emit hasImageChanged();
-
-    m_current   = ColorState{};
-    m_committed = ColorState{};
+    m_current      = ColorState{};
+    m_committed    = ColorState{};
     m_lutProcessed = QImage();
 
     if (urlChanged)  emit imageUrlChanged();
     if (nameChanged) emit imageNameChanged();
-    if (wasEmpty != m_imageUrl.isEmpty()) emit hasImageChanged();
+    if (hadImage != hasImage()) emit hasImageChanged();
 
     emit hueChanged();
     emit brightnessChanged();
@@ -61,6 +56,7 @@ void DetailViewModel::setImage(const QString &url, const QString &name)
 
     emit imageLoaded();
 }
+
 
 
 // void DetailViewModel::clear()
