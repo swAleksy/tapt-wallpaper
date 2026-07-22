@@ -1,4 +1,4 @@
-#include "galleryviewmodel.h"
+#include "viewmodels/galleryviewmodel.h"
 #include <QUrl>
 #include <QtConcurrent>
 #include <qobject.h>

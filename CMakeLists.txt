@@ -19,7 +19,7 @@ include(KDECompilerSettings NO_POLICY_SCOPE)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Widgets Concurrent ShaderTools)
 find_package(KF6 REQUIRED COMPONENTS Kirigami)
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+# find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
 qt_add_executable(tapt-wallpaper
     src/main.cpp
@@ -64,8 +64,10 @@ target_include_directories(tapt-wallpaper PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodels
     ${CMAKE_CURRENT_SOURCE_DIR}/src/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/services
-    ${OpenCV_INCLUDE_DIRS}
+    # ${OpenCV_INCLUDE_DIRS}
 )
+
+target_include_directories(tapt-wallpaper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ...)
 
 target_link_libraries(tapt-wallpaper PRIVATE
     Qt6::Core
@@ -78,5 +80,5 @@ target_link_libraries(tapt-wallpaper PRIVATE
 
     KF6::Kirigami
 
-    ${OpenCV_LIBS}
+    # ${OpenCV_LIBS}
 )

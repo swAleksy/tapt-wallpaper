@@ -1,3 +1,6 @@
+#ifndef ASYNCIMAGERESPONSE_H
+#define ASYNCIMAGERESPONSE_H
+
 #include <QFutureWatcher>
 #include <QImage>
 #include <QQuickAsyncImageProvider>
@@ -59,3 +62,6 @@ public:
         return new AsyncImageResponse(path, requestedSize.isValid() ? requestedSize : QSize(256, 256));
     }
 };
+
+
+#endif // ASYNCIMAGERESPONSE_H

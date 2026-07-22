@@ -1,4 +1,4 @@
-#include "detailviewmodel.h"
+#include "viewmodels/detailviewmodel.h"
 #include <QImageReader>
 
 DetailViewModel::DetailViewModel(QObject* parent)

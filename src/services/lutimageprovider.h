@@ -1,4 +1,7 @@
-#include "lutservice.h"
+#ifndef LUTIMAGEPROVIDER_H
+#define LUTIMAGEPROVIDER_H
+
+#include "services/lutservice.h"
 #include <QQuickImageProvider>
 #include <QUrl> // <-- Upewnij się, że masz ten nagłówek
 
@@ -30,3 +33,5 @@ public:
         return lutTex;
     }
 };
+
+#endif // LUTIMAGEPROVIDER_H

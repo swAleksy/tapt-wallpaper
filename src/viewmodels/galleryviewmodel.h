@@ -10,8 +10,8 @@
 #include <QFutureWatcher>
 #include <qqml.h>
 
-#include "../services/galleryservice.h"
-#include "../models/imagesmodel.h"
+#include "services/galleryservice.h"
+#include "models/imagesmodel.h"
 
 class GalleryViewModel : public QObject
 {

@@ -1,4 +1,4 @@
-#include "galleryservice.h"
+#include "services/galleryservice.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QUrl>

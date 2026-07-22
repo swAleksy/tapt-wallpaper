@@ -1,4 +1,4 @@
-#include "lutservice.h"
+#include "services/lutservice.h"
 #include <QFile>
 #include <QTextStream>
 

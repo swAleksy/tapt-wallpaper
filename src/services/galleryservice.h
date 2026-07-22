@@ -1,7 +1,7 @@
 #ifndef GALLERYSERVICE_H
 #define GALLERYSERVICE_H
 
-#include "../models/imageItem.h"
+#include "models/imageItem.h"
 #include <QObject>
 
 class GalleryService {

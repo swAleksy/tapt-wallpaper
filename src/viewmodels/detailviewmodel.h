@@ -5,7 +5,7 @@
 #include <qqml.h>
 #include <QString>
 #include <QImage>
-#include "lutfilterslistmodel.h"
+#include "models/lutfilterslistmodel.h"
 
 class DetailViewModel : public QObject
 {
