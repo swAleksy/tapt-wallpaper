@@ -26,4 +26,4 @@ private:
     QList<ImageItem> m_images;
 };
 
-#endif
+#endif // IMAGESMODEL_H

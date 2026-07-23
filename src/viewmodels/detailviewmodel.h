@@ -52,6 +52,12 @@ public:
     Q_INVOKABLE void setAsWallpaper();
     Q_INVOKABLE void addToPlaylist();
 
+    Q_INVOKABLE void loadForEditing(const QString &playlistItemId, const QString &sourcePath,
+                                     const QString &name, qreal hue, qreal brightness,
+                                     qreal saturation, bool flipped, const QString &lutPath);
+    // ustawia m_originalImagePath = sourcePath, m_current = {hue, brightness, ...},
+    // zapamiętuje m_editingPlaylistItemId = playlistItemId, emituje imageLoaded()
+
 signals:
     void hasImageChanged();
     void imageUrlChanged();

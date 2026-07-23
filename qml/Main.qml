@@ -17,6 +17,13 @@ Kirigami.ApplicationWindow {
         }
     }
 
+    Connections {
+        target: TimelineViewModel
+        function onItemRequestedForEditing(id, sourcePath, name, hue, brightness, saturation, flipped, lutPath) {
+            DetailViewModel.loadForEditing(id, sourcePath, name, hue, brightness, saturation, flipped, lutPath);
+        }
+    }
+
     SplitView {
         id: mainSplit
         anchors.fill: parent

@@ -11,15 +11,15 @@ import org.kde.taptwallpaper
 //    hasImage          : bool
 //    imageUrl          : url
 //    imageName         : string
-//    hue               : real   // −1.0 … +1.0  (brak live preview — patrz komentarz)
-//    brightness        : real   // −1.0 … +1.0  (live preview przez MultiEffect)
-//    saturation        : real   // −1.0 … +1.0  (live preview przez MultiEffect)
+//    hue               : real   // −1.0 … +1.0
+//    brightness        : real   // −1.0 … +1.0
+//    saturation        : real   // −1.0 … +1.0
 //    flipped           : bool
 //    activeFilterIndex : int    // −1 = brak
 //    filtersModel      : model  // role: name (string)
 //
 //  Signals
-//    imageLoaded()             ← emitowany przez loadImage() w C++ po zmianie obrazu
+//    imageLoaded()
 //
 //  Invokables
 //    applyChanges(hue, brightness, saturation, flipped, filterIndex)
@@ -31,12 +31,6 @@ Item {
     id: detailRoot
 
     // ── Lokalny stan podglądu (niezatwierdzony w VM) ─────────────────────────
-    //
-    //  Tylko brightness i saturation mają live GPU-preview przez MultiEffect.
-    //  Hue jest przechowywane lokalnie i wysyłane do C++ przez applyChanges().
-    //  Live preview hue: zaimplementuj layer.effect + custom .qsb shader lub
-    //  niech ViewModel przetworzy obraz i zaktualizuje imageUrl po każdym ruchu.
-    // ─────────────────────────────────────────────────────────────────────────
     property real previewHue: DetailViewModel.hue
     property real previewBrightness: DetailViewModel.brightness
     property real previewSaturation: DetailViewModel.saturation
@@ -102,63 +96,21 @@ Item {
             border.width: 1
         }
 
-        Item {
+        PreviewImage {
+            id: popupBase
             anchors.fill: parent
-
-            Image {
-                id: popupBase
-                anchors.fill: parent
-                source: DetailViewModel.imageUrl
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                mirror: previewFlipped
-                mipmap: true
-                visible: false
-
-                // DODANE: Wymuszenie ładowania oryginalnej rozdzielczości
-                // Zamiast polegać na cache miniatury, instruujemy QML, jakiej wielkości potrzebujemy
-                //sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-                sourceSize: Qt.size(Math.round(width), Math.round(height))
-                cache: false // Alternatywnie, wyłącza użycie wersji zbuforowanej dla miniatury
-            }
-
-            MultiEffect {
-                id: colorEffect
-                source: popupBase
-                anchors.fill: popupBase
-                brightness: previewBrightness
-                saturation: previewSaturation
-                visible: false
-            }
-
-            ShaderEffectSource {
-                id: effectSource
-                sourceItem: colorEffect
-                hideSource: true
-                live: true
-                mipmap: true
-                visible: popupBase.width > 0 && popupBase.height > 0
-            }
-
-            ShaderEffect {
-                anchors.fill: popupBase
-                property variant sourceImage: effectSource
-                property variant lutTexture: Image {
-                    asynchronous: true
-                    source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
-                }
-                // property real lutSize: {
-                //     if (DetailViewModel.activeFilterIndex >= 0) {
-                //         return DetailViewModel.lutFiltersListModel.filterSize(DetailViewModel.activeFilterIndex);
-                //     }
-                //     return 33.0;
-                // }
-                property real lutSize: previewFilterIndex >= 0 ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex) : 33.0
-                property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
-                property real hue: previewHue
-                fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
-            }
+            source: DetailViewModel.imageUrl
+            fillMode: Image.PreserveAspectFit
+            brightness: previewBrightness
+            saturation: previewSaturation
+            hue: previewHue
+            flipped: previewFlipped
+            filterIndex: previewFilterIndex
+            filterModel: DetailViewModel.lutFiltersListModel
+            sourceSize: Qt.size(Math.round(width), Math.round(height))
+            cache: false
         }
+
 
         ToolButton {
             anchors {
@@ -221,7 +173,8 @@ Item {
 
                 radius: 7
                 color: "#08090c"
-                layer.enabled: true
+                //layer.enabled: true
+                clip: true
 
                 MouseArea {
                     id: thumbHoverArea
@@ -230,53 +183,17 @@ Item {
                     onClicked: previewPopup.open()
                 }
 
-                Image {
+                PreviewImage {
                     id: thumbBase
                     anchors.fill: parent
                     source: DetailViewModel.imageUrl
                     fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    mirror: previewFlipped
-                    mipmap: true // Jakość miniatury
-                    visible: false
-                }
-
-                MultiEffect {
-                    id: thumbColorEffect
-                    source: thumbBase
-                    anchors.fill: thumbBase
                     brightness: previewBrightness
                     saturation: previewSaturation
-                    visible: false
-                }
-
-                ShaderEffectSource {
-                    id: thumbEffectSource
-                    sourceItem: thumbColorEffect
-                    hideSource: true
-                    live: true
-                    mipmap: true
-                }
-
-                ShaderEffect {
-                    anchors.fill: thumbBase
-                    property variant sourceImage: thumbEffectSource
-                    property variant lutTexture: Image {
-                        asynchronous: true
-                        source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
-                    }
-                    // property real lutSize: {
-                    //     if (DetailViewModel.activeFilterIndex >= 0) {
-                    //         return DetailViewModel.lutFiltersListModel.filterSize(DetailViewModel.activeFilterIndex);
-                    //     }
-                    //     return 33.0;
-                    // }
-
-                    property real lutSize: previewFilterIndex >= 0 ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex) : 33.0
-
-                    property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
-                    property real hue: previewHue
-                    fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
+                    hue: previewHue
+                    flipped: previewFlipped
+                    filterIndex: previewFilterIndex
+                    filterModel: DetailViewModel.lutFiltersListModel
                 }
 
                 Label {
@@ -295,7 +212,6 @@ Item {
                     border.width: 1
                 }
 
-                // ZMIANA: Niestandardowy przycisk, aby zyskać perfekcyjne wyśrodkowanie
                 Item {
                     anchors {
                         top: parent.top
@@ -324,7 +240,7 @@ Item {
                         width: 14
                         height: 14
                         source: "zoom-in"
-                        color: "white" // Nowa ikonka z wymuszonym kolorem, odporna na style Qt
+                        color: "white"
                     }
 
                     MouseArea {
@@ -475,7 +391,6 @@ Item {
             }
 
             // ── FILTRY ──────────────────────────────────────────────
-            // ZMIANA: Zamieniono ItemDelegate na RowLayout dla idealnego marginesu i zrównania z guzikami
             Item {
                 id: filtersHeader
                 Layout.fillWidth: true
@@ -640,6 +555,73 @@ Item {
                     onClicked: DetailViewModel.addToPlaylist()
                 }
             }
+        }
+    }
+
+    // ── Inline Reusable Component ─────────────────────────────────────────
+    component PreviewImage: Item {
+        id: root
+
+        property url source
+        property int fillMode: Image.PreserveAspectFit
+        property real brightness: 0.0
+        property real saturation: 0.0
+        property real hue: 0.0
+        property bool flipped: false
+        property int filterIndex: -1
+        property var filterModel
+        property bool cache: true
+        property size sourceSize: Qt.size(0, 0)
+
+        readonly property int status: baseImage.status
+
+        Image {
+            id: baseImage
+            anchors.fill: parent
+            source: root.source
+            fillMode: root.fillMode
+            asynchronous: true
+            mirror: root.flipped
+            mipmap: true
+            visible: false
+            cache: root.cache
+            // FIXED: Only set sourceSize when explicitly provided with width > 0
+            sourceSize: (root.sourceSize.width > 0 && root.sourceSize.height > 0) ? root.sourceSize : undefined
+        }
+
+        MultiEffect {
+            id: colorEffect
+            source: baseImage
+            anchors.fill: baseImage
+            brightness: root.brightness
+            saturation: root.saturation
+            visible: false
+        }
+
+        ShaderEffectSource {
+            id: effectSource
+            sourceItem: colorEffect
+            hideSource: true
+            live: true
+            mipmap: true
+            visible: baseImage.width > 0 && baseImage.height > 0
+        }
+
+        ShaderEffect {
+            anchors.fill: parent // Anchoring to parent instead of baseImage ensures proper layout fill
+            property variant sourceImage: effectSource
+            property variant lutTexture: Image {
+                asynchronous: true
+                source: (root.filterIndex >= 0 && root.filterModel)
+                        ? "image://lut/" + encodeURIComponent(root.filterModel.lutPath(root.filterIndex))
+                        : ""
+            }
+            property real lutSize: (root.filterIndex >= 0 && root.filterModel)
+                                    ? root.filterModel.filterSize(root.filterIndex)
+                                    : 33.0
+            property real filterMix: root.filterIndex >= 0 ? 1.0 : 0.0
+            property real hue: root.hue
+            fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
         }
     }
 }
