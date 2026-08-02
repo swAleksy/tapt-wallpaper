@@ -32,6 +32,7 @@ qt_add_qml_module(tapt-wallpaper
     QML_FILES qml/Gallery.qml
     QML_FILES qml/GalleryGrid.qml
     QML_FILES qml/DetailView.qml
+    QML_FILES qml/TimelinePanel.qml
 
     SOURCES
         src/models/imageItem.h

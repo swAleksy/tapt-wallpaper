@@ -8,6 +8,8 @@ Kirigami.ApplicationWindow {
     id: root
     width: Math.round(Screen.width * 0.666)
     height: Math.round(Screen.height * 0.666)
+    minimumWidth: 800
+    minimumHeight: 600
     title: qsTr("Tapt")
 
     Connections {
@@ -21,6 +23,13 @@ Kirigami.ApplicationWindow {
         target: TimelineViewModel
         function onItemRequestedForEditing(id, sourcePath, name, hue, brightness, saturation, flipped, lutPath) {
             DetailViewModel.loadForEditing(id, sourcePath, name, hue, brightness, saturation, flipped, lutPath);
+        }
+    }
+
+    Connections {
+        target: DetailViewModel
+        function onImageAdded(sourcePath, name, hue, brightness, saturation, flipped, lutPath) {
+            TimelineViewModel.addItem(sourcePath, name, hue, brightness, saturation, flipped, lutPath);
         }
     }
 
@@ -64,12 +73,15 @@ Kirigami.ApplicationWindow {
             SplitView.maximumHeight: Math.round(root.height * 0.35)
             color: Kirigami.Theme.backgroundColor
 
-            // ← drop your P3 component here
-            Label {
-                anchors.centerIn: parent
-                text: "Timeline"
-                font.pointSize: 18
+            TimelinePanel {
+                anchors.fill: parent
             }
+            // ← drop your P3 component here
+            // Label {
+            //     anchors.centerIn: parent
+            //     text: "Timeline"
+            //     font.pointSize: 18
+            // }
         }
     }
 }

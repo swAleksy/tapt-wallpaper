@@ -1,6 +1,6 @@
-#include "playlistmodel.h"
+#include "queuemodel.h"
 
-int PlaylistModel::rowCount(const QModelIndex& parent) const
+int QueueModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
@@ -8,12 +8,12 @@ int PlaylistModel::rowCount(const QModelIndex& parent) const
     return m_items.size();
 }
 
-QVariant PlaylistModel::data(const QModelIndex& index, int role) const
+QVariant QueueModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size())
         return {};
 
-    const PlaylistItem& item = m_items[index.row()];
+    const QueueItem& item = m_items[index.row()];
 
     switch (role) {
     case IdRole: return item.id;
@@ -28,7 +28,7 @@ QVariant PlaylistModel::data(const QModelIndex& index, int role) const
     }
 }
 
-QHash<int, QByteArray> PlaylistModel::roleNames() const
+QHash<int, QByteArray> QueueModel::roleNames() const
 {
     return {
         { IdRole, "id" },
@@ -42,7 +42,7 @@ QHash<int, QByteArray> PlaylistModel::roleNames() const
     };
 }
 
-void PlaylistModel::addOrUpdate(const PlaylistItem& item)
+void QueueModel::addOrUpdate(const QueueItem& item)
 {
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == item.id) {
@@ -58,7 +58,7 @@ void PlaylistModel::addOrUpdate(const PlaylistItem& item)
     endInsertRows();
 }
 
-void PlaylistModel::remove(const QString& id)
+void QueueModel::remove(const QString& id)
 {
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == id) {
@@ -70,7 +70,7 @@ void PlaylistModel::remove(const QString& id)
     }
 }
 
-void PlaylistModel::resetToDefaults(const QString& id)
+void QueueModel::resetToDefaults(const QString& id)
 {
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == id) {

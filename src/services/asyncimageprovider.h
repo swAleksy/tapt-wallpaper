@@ -3,6 +3,7 @@
 
 #include <QFutureWatcher>
 #include <QImage>
+#include <QImageReader>
 #include <QQuickAsyncImageProvider>
 #include <QQuickImageResponse>
 #include <QQuickTextureFactory>
@@ -25,14 +26,28 @@ public:
         QFuture<QImage> future = QtConcurrent::run([id, requestedSize, abortFlag]() {
             if (abortFlag->load())
                 return QImage();
-            QImage img(id);
+
+            QImageReader reader(id);
+            // Honoruje orientację EXIF przy okazji — poprzednia wersja (QImage(id))
+            // robiła to automatycznie tylko dla formatów obsługujących auto-transform
+            // domyślnie; tu ustawiamy to jawnie.
+            reader.setAutoTransform(true);
+
+            if (requestedSize.isValid() && !requestedSize.isEmpty()) {
+                const QSize nativeSize = reader.size(); // czyta nagłówek, nie dekoduje pikseli
+                if (nativeSize.isValid() && !nativeSize.isEmpty()) {
+                    // KeepAspectRatio ręcznie — setScaledSize() samo nie zachowuje proporcji
+                    reader.setScaledSize(nativeSize.scaled(requestedSize, Qt::KeepAspectRatio));
+                }
+                // jeśli nativeSize nieznany (np. reader nie umie odczytać nagłówka bez
+                // pełnego dekodu dla danego formatu) — celowo NIE ustawiamy scaledSize
+                // i lecimy pełnym odczytem niżej; unikamy zgadywania rozmiaru.
+            }
+
             if (abortFlag->load())
                 return QImage();
 
-            if (!img.isNull() && requestedSize.isValid()) {
-                img = img.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            }
-            return img;
+            return reader.read(); // QImage() jeśli się nie uda — obsłużone niżej jak wcześniej
         });
 
         m_watcher.setFuture(future);

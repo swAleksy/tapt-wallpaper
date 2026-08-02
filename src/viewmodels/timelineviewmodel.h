@@ -1,7 +1,7 @@
 #ifndef TIMELINEVIEWMODEL_H
 #define TIMELINEVIEWMODEL_H
 
-#include "models/playlistmodel.h"
+#include "models/queuemodel.h"
 #include <QObject>
 #include <qqml.h>
 
@@ -9,11 +9,11 @@ class TimelineViewModel : public QObject {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
-    Q_PROPERTY(PlaylistModel* playlistModel READ playlistModel CONSTANT)
+    Q_PROPERTY(QueueModel* queueModel READ queueModel CONSTANT)
 
 public:
     static TimelineViewModel* create(QQmlEngine*, QJSEngine*) { return new TimelineViewModel(); }
-    PlaylistModel* playlistModel() const { return m_model; }
+    QueueModel* queueModel() const { return m_model; }
 
     Q_INVOKABLE QString addItem(
         const QString& sourcePath,
@@ -48,7 +48,7 @@ signals:
         const QString& lutPath);
 
 private:
-    PlaylistModel* m_model;
+    QueueModel* m_model;
 };
 
 #endif // TIMELINEVIEWMODEL_H

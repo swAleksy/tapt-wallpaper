@@ -1,11 +1,11 @@
-#ifndef PLAYLISTMODEL_H
-#define PLAYLISTMODEL_H
+#ifndef QUEUEMODEL_H
+#define QUEUEMODEL_H
 
-#include "models/playlistitem.h"
+#include "models/queueitem.h"
 #include <QAbstractListModel>
 #include <QObject>
 
-class PlaylistModel : public QAbstractListModel {
+class QueueModel : public QAbstractListModel {
     Q_OBJECT
 public:
     enum Roles {
@@ -24,13 +24,13 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void addOrUpdate(const PlaylistItem& item); // po id
+    void addOrUpdate(const QueueItem& item); // po id
     void remove(const QString& id);
     void resetToDefaults(const QString& id); // edit = EditState::identity()
 
 private:
-    QList<PlaylistItem> m_items;
+    QList<QueueItem> m_items;
 
 };
 
-#endif // PLAYLISTMODEL_H
+#endif // QUEUEMODEL_H

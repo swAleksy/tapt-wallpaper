@@ -1,15 +1,15 @@
-#ifndef PLAYLISTITEM_H
-#define PLAYLISTITEM_H
+#ifndef QUEUEITEM_H
+#define QUEUEITEM_H
 
 #include <QString>
 #include "models/editstate.h"
 
-struct PlaylistItem {
+struct QueueItem {
     QString   id;            // QUuid::createUuid().toString()
     QString   sourcePath;    // ścieżka do ORYGINALNEGO, niezmienionego pliku
     QString   name;
     EditState edit;
-    QString   exportedPath;  // na razie zawsze puste — zarezerwowane pod przyszły render dla skryptu (nie używane teraz)
+    QString   exportedPath = "//ph_path";  // na razie zawsze puste — zarezerwowane pod przyszły render dla skryptu (nie używane teraz)
 };
 
-#endif // PLAYLISTITEM_H
+#endif // QUEUEITEM_H

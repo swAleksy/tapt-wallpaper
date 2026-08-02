@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.taptwallpaper
@@ -36,6 +35,16 @@ Item {
     property real previewSaturation: DetailViewModel.saturation
     property bool previewFlipped: DetailViewModel.flipped
     property int previewFilterIndex: DetailViewModel.activeFilterIndex
+
+    // PreviewImage nie zna pojęcia "indeksu w liście filtrów" (to szczegół UI
+    // tego widoku) — przyjmuje gotowe lutPath/lutSize, więc rozwiązanie
+    // indeksu robimy tutaj, przy pomocy tego samego lutFiltersListModel.
+    readonly property string previewLutPath: (previewFilterIndex >= 0 && DetailViewModel.lutFiltersListModel)
+        ? DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)
+        : ""
+    readonly property real previewLutSize: (previewFilterIndex >= 0 && DetailViewModel.lutFiltersListModel)
+        ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex)
+        : 33.0
 
     // Funkcja pomocnicza do synchronizacji stanu
     function syncLocalState() {
@@ -105,8 +114,8 @@ Item {
             saturation: previewSaturation
             hue: previewHue
             flipped: previewFlipped
-            filterIndex: previewFilterIndex
-            filterModel: DetailViewModel.lutFiltersListModel
+            lutPath: previewLutPath
+            lutSize: previewLutSize
             sourceSize: Qt.size(Math.round(width), Math.round(height))
             cache: false
         }
@@ -192,8 +201,8 @@ Item {
                     saturation: previewSaturation
                     hue: previewHue
                     flipped: previewFlipped
-                    filterIndex: previewFilterIndex
-                    filterModel: DetailViewModel.lutFiltersListModel
+                    lutPath: previewLutPath
+                    lutSize: previewLutSize
                 }
 
                 Label {
@@ -555,73 +564,6 @@ Item {
                     onClicked: DetailViewModel.addToPlaylist()
                 }
             }
-        }
-    }
-
-    // ── Inline Reusable Component ─────────────────────────────────────────
-    component PreviewImage: Item {
-        id: root
-
-        property url source
-        property int fillMode: Image.PreserveAspectFit
-        property real brightness: 0.0
-        property real saturation: 0.0
-        property real hue: 0.0
-        property bool flipped: false
-        property int filterIndex: -1
-        property var filterModel
-        property bool cache: true
-        property size sourceSize: Qt.size(0, 0)
-
-        readonly property int status: baseImage.status
-
-        Image {
-            id: baseImage
-            anchors.fill: parent
-            source: root.source
-            fillMode: root.fillMode
-            asynchronous: true
-            mirror: root.flipped
-            mipmap: true
-            visible: false
-            cache: root.cache
-            // FIXED: Only set sourceSize when explicitly provided with width > 0
-            sourceSize: (root.sourceSize.width > 0 && root.sourceSize.height > 0) ? root.sourceSize : undefined
-        }
-
-        MultiEffect {
-            id: colorEffect
-            source: baseImage
-            anchors.fill: baseImage
-            brightness: root.brightness
-            saturation: root.saturation
-            visible: false
-        }
-
-        ShaderEffectSource {
-            id: effectSource
-            sourceItem: colorEffect
-            hideSource: true
-            live: true
-            mipmap: true
-            visible: baseImage.width > 0 && baseImage.height > 0
-        }
-
-        ShaderEffect {
-            anchors.fill: parent // Anchoring to parent instead of baseImage ensures proper layout fill
-            property variant sourceImage: effectSource
-            property variant lutTexture: Image {
-                asynchronous: true
-                source: (root.filterIndex >= 0 && root.filterModel)
-                        ? "image://lut/" + encodeURIComponent(root.filterModel.lutPath(root.filterIndex))
-                        : ""
-            }
-            property real lutSize: (root.filterIndex >= 0 && root.filterModel)
-                                    ? root.filterModel.filterSize(root.filterIndex)
-                                    : 33.0
-            property real filterMix: root.filterIndex >= 0 ? 1.0 : 0.0
-            property real hue: root.hue
-            fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
         }
     }
 }

@@ -76,5 +76,31 @@ void DetailViewModel::setAsWallpaper()
 
 void DetailViewModel::addToPlaylist()
 {
-    // todo
+    QString lutPath = "";
+    if (m_current.activeFilterIndex >= 0 && m_lutFiltersListModel) {
+        lutPath = m_lutFiltersListModel->lutPath(m_current.activeFilterIndex);
+    }
+
+    emit imageAdded(
+        m_originalImagePath,
+        m_imageName,
+        m_current.hue,
+        m_current.brightness,
+        m_current.saturation,
+        m_current.flipped,
+        lutPath
+    );
+}
+
+void DetailViewModel::loadForEditing(
+	const QString &playlistItemId,
+	const QString &sourcePath,
+	const QString &name,
+	qreal hue,
+	qreal brightness,
+	qreal saturation,
+	bool flipped,
+	const QString &lutPath)
+{
+	// todo
 }
