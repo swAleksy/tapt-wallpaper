@@ -63,28 +63,41 @@ public:
     // ustawia m_originalImagePath = sourcePath, m_current = {hue, brightness, ...},
     // zapamiętuje m_editingPlaylistItemId = playlistItemId, emituje imageLoaded()
 
-signals:
-    void hasImageChanged();
-    void imageUrlChanged();
-    void imageNameChanged();
+    signals:
+        void hasImageChanged();
+        void imageUrlChanged();
+        void imageNameChanged();
 
-    void hueChanged();
-    void brightnessChanged();
-    void saturationChanged();
-    void flippedChanged();
-    void activeFilterIndexChanged();
+        void hueChanged();
+        void brightnessChanged();
+        void saturationChanged();
+        void flippedChanged();
+        void activeFilterIndexChanged();
 
-    void stateReverted();
-    void imageLoaded();
+        void stateReverted();
+        void imageLoaded();
 
-    void imageAdded(
-        const QString &sourcePath,
-    	const QString &name,
-    	qreal hue,
-    	qreal brightness,
-    	qreal saturation,
-    	bool flipped,
-    	const QString &lutPath);
+        void imageAdded(
+            const QString &sourcePath,
+        	const QString &name,
+        	qreal hue,
+        	qreal brightness,
+        	qreal saturation,
+        	bool flipped,
+        	const QString &lutPath);
+
+        // Emitowany z applyChanges(), gdy edytujemy element JUŻ obecny w kolejce
+        // (czyli po loadForEditing()). Łącz w warstwie wyżej z
+        // TimelineViewModel::updateItem(id, ...), żeby PreviewImage w
+        // TimelinePanel dostał nowe wartości.
+        void itemEditApplied(
+            const QString &id,
+            qreal hue,
+            qreal brightness,
+            qreal saturation,
+            bool flipped,
+            const QString &lutPath);
+
 
 private:
 
@@ -103,6 +116,7 @@ private:
     QString m_originalImagePath;
     bool    m_originalImageValid = false;
 
+    QString m_editingPlaylistItemId;
     ColorState m_current;
 
     QString m_imageUrl;

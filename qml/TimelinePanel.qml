@@ -11,6 +11,11 @@ Item {
     // Trzyma wybrany tryb z ComboBoxa: 0 = Random, 1 = Time of the day
     property int currentMode: 0
 
+    // Budowanie URL z surowej ścieżki (model.sourcePath -> "image://taptimage/...")
+    // przeniesione do PreviewImage — jedno miejsce zamiast identycznej funkcji
+    // w każdym widoku, który wyświetla obrazy z kolejki. PreviewImage stosuje
+    // też te same efekty korekcji/LUT co podgląd w DetailView.
+
     // ════════════════════════════════════════════════════════════════════════
     //  GÓRNY PASEK NARZĘDZIOWY
     // ════════════════════════════════════════════════════════════════════════
@@ -135,6 +140,8 @@ Item {
 
                 delegate: DropArea {
                     id: delegateRoot
+                    required property var model
+                    required property int index
                     width: 120
                     height: randomList.height - 16
 
@@ -177,14 +184,27 @@ Item {
                             }
                         ]
 
-                        Image {
+                        PreviewImage {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
                             height: parent.height * 0.7
-                            source: model.sourcePath || ""
+                            source: model.sourcePath
                             fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
+
+                            // hue: model.hue
+                            // brightness: model.brightness
+                            // saturation: model.saturation
+                            // flipped: model.flipped
+                            // lutPath: model.lutPath
+
+                            hue: delegateRoot.model.hue
+                            brightness: delegateRoot.model.brightness
+                            saturation: delegateRoot.model.saturation
+                            flipped: delegateRoot.model.flipped
+                            lutPath: delegateRoot.model.lutPath
+
+                            sourceSize: Qt.size(width, height)
                         }
 
                         Label {
@@ -260,8 +280,8 @@ Item {
                     property int durationMin: endMin - startMin
 
                     // Sztywne powiązanie szerokości i x do kontenera rodzica
-                    x: startMin * timeContainer.pxPerMin
-                    width: durationMin * timeContainer.pxPerMin
+                    x: timeItem.startMin * timeContainer.pxPerMin
+                    width: (timeItem.endMin - timeItem.startMin) * timeContainer.pxPerMin
 
                     function snapTo5(val) { return Math.round(val / 5) * 5; }
 
@@ -273,12 +293,19 @@ Item {
                         radius: 4
                         clip: true
 
-                        Image {
+                        PreviewImage {
                             anchors.fill: parent
-                            source: model.sourcePath || ""
+                            source: model.sourcePath
                             fillMode: Image.PreserveAspectCrop
-                            opacity: 0.5
-                            asynchronous: true
+                            hue: model.hue
+                            brightness: model.brightness
+                            saturation: model.saturation
+                            flipped: model.flipped
+                            lutPath: model.lutPath
+                            // sourceSize celowo liczony tylko z height (stabilny podczas
+                            // przeciągania uchwytów start/end — zmienia się tylko width),
+                            // żeby resize nie wywoływał ciągłego redekodowania obrazu.
+                            sourceSize: Qt.size(Math.round(height * 3), height)
                         }
 
                         Label {
@@ -293,7 +320,10 @@ Item {
                         // Środek - Przesuwanie na osi czasu
                         MouseArea {
                             anchors.fill: parent
-                            anchors.margins: 10
+
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+
                             cursorShape: Qt.SizeAllCursor
 
                             property real startDragX: 0
@@ -317,8 +347,10 @@ Item {
                                     if (newStart < 0) newStart = 0
                                     if (newStart + timeItem.durationMin > 1440) newStart = 1440 - timeItem.durationMin
 
+                                    var duration = timeItem.endMin - timeItem.startMin
+
                                     timeItem.startMin = newStart
-                                    timeItem.endMin = newStart + timeItem.durationMin
+                                    timeItem.endMin = newStart + duration
                                 }
                             }
                         }

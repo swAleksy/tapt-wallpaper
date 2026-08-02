@@ -1,5 +1,11 @@
 #include "queuemodel.h"
 
+QueueModel::QueueModel(QObject* parent)
+    : QAbstractListModel(parent)
+{
+}
+
+
 int QueueModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
@@ -48,7 +54,8 @@ void QueueModel::addOrUpdate(const QueueItem& item)
         if (m_items[i].id == item.id) {
             m_items[i] = item;
 
-            emit dataChanged(index(i), index(i));
+            emit dataChanged(index(i), index(i),
+                {HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole});
             return;
         }
     }
@@ -76,7 +83,8 @@ void QueueModel::resetToDefaults(const QString& id)
         if (m_items[i].id == id) {
             m_items[i].edit = EditState::identity();
 
-            emit dataChanged(index(i), index(i));
+            emit dataChanged(index(i), index(i),
+                {HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole});
             return;
         }
     }

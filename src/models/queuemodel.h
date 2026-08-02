@@ -20,6 +20,8 @@ public:
     };
     // rowCount/data/roleNames analogicznie do ImagesModel
 
+    explicit QueueModel(QObject* parent = nullptr);
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;

@@ -33,17 +33,23 @@ qt_add_qml_module(tapt-wallpaper
     QML_FILES qml/GalleryGrid.qml
     QML_FILES qml/DetailView.qml
     QML_FILES qml/TimelinePanel.qml
+    QML_FILES qml/PreviewImage.qml
 
     SOURCES
         src/models/imageItem.h
         src/models/imagesmodel.h            src/models/imagesmodel.cpp
         src/models/lutfilterslistmodel.h    src/models/lutfilterslistmodel.cpp
+        src/models/editstate.h
+        src/models/queueitem.h
+        src/models/queuemodel.h           src/models/queuemodel.cpp
         src/services/galleryservice.h       src/services/galleryservice.cpp
         src/services/asyncimageprovider.h
         src/services/lutimageprovider.h
         src/services/lutservice.h           src/services/lutservice.cpp
         src/viewmodels/galleryviewmodel.h   src/viewmodels/galleryviewmodel.cpp
         src/viewmodels/detailviewmodel.h    src/viewmodels/detailviewmodel.cpp
+        src/viewmodels/timelineviewmodel.h  src/viewmodels/timelineviewmodel.cpp
+
 )
 
 qt_add_shaders(tapt-wallpaper "shaders"

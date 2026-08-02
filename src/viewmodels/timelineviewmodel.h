@@ -12,7 +12,9 @@ class TimelineViewModel : public QObject {
     Q_PROPERTY(QueueModel* queueModel READ queueModel CONSTANT)
 
 public:
-    static TimelineViewModel* create(QQmlEngine*, QJSEngine*) { return new TimelineViewModel(); }
+    // Standardowy konstruktor z parent = nullptr (bez metody create!)
+    explicit TimelineViewModel(QObject *parent = nullptr);
+
     QueueModel* queueModel() const { return m_model; }
 
     Q_INVOKABLE QString addItem(
@@ -22,7 +24,7 @@ public:
         qreal brightness,
         qreal saturation,
         bool flipped,
-        const QString& lutPath); // Returns new ID.
+        const QString& lutPath);
 
     Q_INVOKABLE void updateItem(
         const QString& id,
@@ -34,7 +36,7 @@ public:
 
     Q_INVOKABLE void resetItemToDefaults(const QString& id);
     Q_INVOKABLE void removeItem(const QString& id);
-    Q_INVOKABLE void editItem(const QString& id); // Click in Timeline -> open in DetailView.
+    Q_INVOKABLE void editItem(const QString& id);
 
 signals:
     void itemRequestedForEditing(
