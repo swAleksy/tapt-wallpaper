@@ -3,10 +3,13 @@
 
 #include <QFutureWatcher>
 #include <QImage>
+#include <QImageReader>
 #include <QQuickAsyncImageProvider>
 #include <QQuickImageResponse>
 #include <QQuickTextureFactory>
 #include <QtConcurrent>
+#include <memory>
+#include <atomic>
 
 class AsyncImageResponse : public QQuickImageResponse {
     Q_OBJECT
@@ -25,14 +28,22 @@ public:
         QFuture<QImage> future = QtConcurrent::run([id, requestedSize, abortFlag]() {
             if (abortFlag->load())
                 return QImage();
-            QImage img(id);
+
+            QImageReader reader(id);
+            // Honoruje orientację EXIF
+            reader.setAutoTransform(true);
+
+            if (requestedSize.isValid() && !requestedSize.isEmpty()) {
+                const QSize nativeSize = reader.size();
+                if (nativeSize.isValid() && !nativeSize.isEmpty()) {
+                    reader.setScaledSize(nativeSize.scaled(requestedSize, Qt::KeepAspectRatio));
+                }
+            }
+
             if (abortFlag->load())
                 return QImage();
 
-            if (!img.isNull() && requestedSize.isValid()) {
-                img = img.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            }
-            return img;
+            return reader.read();
         });
 
         m_watcher.setFuture(future);
@@ -44,7 +55,16 @@ public:
         m_abortFlag->store(true);
     }
 
-    QQuickTextureFactory* textureFactory() const override { return QQuickTextureFactory::textureFactoryForImage(m_image); }
+    // POPRAWKA 1: Natychmiastowe ubicie procesu na żądanie QML (np. przy scrollowaniu)
+    void cancel() override
+    {
+        m_abortFlag->store(true);
+    }
+
+    QQuickTextureFactory* textureFactory() const override
+    {
+        return QQuickTextureFactory::textureFactoryForImage(m_image);
+    }
 
 private slots:
     void handleFinished()
@@ -59,9 +79,10 @@ public:
     QQuickImageResponse* requestImageResponse(const QString& id, const QSize& requestedSize) override
     {
         const QString path = QUrl::fromPercentEncoding(id.toUtf8());
-        return new AsyncImageResponse(path, requestedSize.isValid() ? requestedSize : QSize(256, 256));
+        // POPRAWKA 2: Usunięto sztywny fallback do wymuszania 256x256,
+        // pozwalamy silnikowi zadecydować lub wczytać pełny rozmiar.
+        return new AsyncImageResponse(path, requestedSize);
     }
 };
-
 
 #endif // ASYNCIMAGERESPONSE_H

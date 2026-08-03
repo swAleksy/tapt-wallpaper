@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 import org.kde.taptwallpaper
 
@@ -60,7 +59,8 @@ Item {
         }
 
         onCountChanged: {
-            if (count > 0 && contentHeight <= height + cellHeight) {
+            // FIX: Dodano sprawdzanie GalleryViewModel.hasMoreImages, aby zapobiec pętli nieskończonej
+            if (count > 0 && contentHeight <= height + cellHeight && GalleryViewModel.hasMoreImages) {
                 loadDebounce.restart();
             }
         }
@@ -82,35 +82,27 @@ Item {
                 hoverEnabled: true
                 onClicked: GalleryViewModel.selectImage(delegateRoot.index)
 
+                // FIX: Zastąpiono MultiEffect prostym prostokątem podświetlenia
                 Rectangle {
-                    id: glowRect
-                    anchors.centerIn: parent
-                    width: parent.width - 4
-                    height: parent.height - 4
-                    radius: 10
+                    id: hoverHighlight
+                    anchors.fill: parent
+                    // Wypełnia całą komórkę delegata, jest nieco większy niż wewnętrzna karta
+                    anchors.margins: 0
+                    radius: 6
                     color: Kirigami.Theme.highlightColor
-                    // visible: cellMouseArea.containsMouse  // skip paint when hidden
-                    opacity: cellMouseArea.containsMouse ? 0.3 : 0.0
+                    opacity: cellMouseArea.containsMouse ? 0.35 : 0.0
 
                     Behavior on opacity {
                         NumberAnimation {
                             duration: 150
                         }
                     }
-
-                    layer.enabled: opacity > 0
-                    layer.effect: MultiEffect {
-                        blurEnabled: true
-                        blur: 1.0
-                        blurMax: 28
-                        paddingRect: Qt.rect(-20, -20, 40, 40)
-                    }
                 }
 
                 // Card
                 Rectangle {
                     anchors.fill: parent
-                    anchors.margins: 5
+                    anchors.margins: 2
                     color: Kirigami.Theme.alternateBackgroundColor
                     radius: 4
                     clip: true
@@ -129,9 +121,6 @@ Item {
                         sourceSize.width: imageGrid.cellWidth
                         sourceSize.height: imageGrid.cellHeight
 
-                        //sourceSize.width: 256
-                        //.height: 256
-
                         cache: true
 
                         opacity: status === Image.Ready ? 1.0 : 0.0
@@ -146,7 +135,7 @@ Item {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.margins: delegateRoot.isSelected ? 2 : 1  // ← match border.width
+                        anchors.margins: delegateRoot.isSelected ? 2 : 1
                         height: 24
                         color: Qt.rgba(0, 0, 0, 0.6)
                         radius: 4
@@ -163,17 +152,6 @@ Item {
                         }
                     }
 
-                    // Timer {
-                    //     id: indicatorDelay
-                    //     interval: 150
-                    //     running: galleryImage.status === Image.Loading
-                    // }
-
-                    // BusyIndicator {
-                    //     anchors.centerIn: parent
-                    //     running: indicatorDelay.running // Bind to the timer, not the image directly
-                    //     visible: running
-                    // }
                     BusyIndicator {
                         anchors.centerIn: parent
                         running: galleryImage.status === Image.Loading
@@ -193,7 +171,8 @@ Item {
         readonly property bool approachingEnd: count > 0 && (contentY + height >= contentHeight - cellHeight * 3)
 
         onApproachingEndChanged: {
-            if (approachingEnd) {
+            // FIX: Dodano sprawdzanie GalleryViewModel.hasMoreImages
+            if (approachingEnd && GalleryViewModel.hasMoreImages) {
                 loadDebounce.restart();
             }
         }

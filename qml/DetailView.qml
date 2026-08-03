@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.taptwallpaper
@@ -11,19 +10,26 @@ import org.kde.taptwallpaper
 //    hasImage          : bool
 //    imageUrl          : url
 //    imageName         : string
-//    hue               : real   // −1.0 … +1.0  (brak live preview — patrz komentarz)
-//    brightness        : real   // −1.0 … +1.0  (live preview przez MultiEffect)
-//    saturation        : real   // −1.0 … +1.0  (live preview przez MultiEffect)
+//    hue               : real   // −1.0 … +1.0
+//    brightness        : real   // brightnessMin … brightnessMax (−0.5 … +0.5)
+//    saturation        : real   // saturationMin … saturationMax (−0.9 … +0.9)
 //    flipped           : bool
 //    activeFilterIndex : int    // −1 = brak
 //    filtersModel      : model  // role: name (string)
+//    brightnessMin/Max : real   // limity suwaka jasności
+//    saturationMin/Max : real   // limity suwaka nasycenia
 //
 //  Signals
-//    imageLoaded()             ← emitowany przez loadImage() w C++ po zmianie obrazu
+//    imageLoaded()
 //
 //  Invokables
 //    applyChanges(hue, brightness, saturation, flipped, filterIndex)
+//      — wołane automatycznie z debounce 500 ms po zmianie suwaka/filtra/
+//        odbicia (patrz autoApplyTimer poniżej); przycisk "Zastosuj" tylko
+//        pomija to opóźnienie.
 //    revertChanges()
+//      — czyści korekty i filtr do zera (nie do ostatnio zatwierdzonych
+//        wartości).
 //    setAsWallpaper()
 //    addToPlaylist()
 
@@ -31,17 +37,21 @@ Item {
     id: detailRoot
 
     // ── Lokalny stan podglądu (niezatwierdzony w VM) ─────────────────────────
-    //
-    //  Tylko brightness i saturation mają live GPU-preview przez MultiEffect.
-    //  Hue jest przechowywane lokalnie i wysyłane do C++ przez applyChanges().
-    //  Live preview hue: zaimplementuj layer.effect + custom .qsb shader lub
-    //  niech ViewModel przetworzy obraz i zaktualizuje imageUrl po każdym ruchu.
-    // ─────────────────────────────────────────────────────────────────────────
     property real previewHue: DetailViewModel.hue
     property real previewBrightness: DetailViewModel.brightness
     property real previewSaturation: DetailViewModel.saturation
     property bool previewFlipped: DetailViewModel.flipped
     property int previewFilterIndex: DetailViewModel.activeFilterIndex
+
+    // PreviewImage nie zna pojęcia "indeksu w liście filtrów" (to szczegół UI
+    // tego widoku) — przyjmuje gotowe lutPath/lutSize, więc rozwiązanie
+    // indeksu robimy tutaj, przy pomocy tego samego lutFiltersListModel.
+    readonly property string previewLutPath: (previewFilterIndex >= 0 && DetailViewModel.lutFiltersListModel)
+        ? DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)
+        : ""
+    readonly property real previewLutSize: (previewFilterIndex >= 0 && DetailViewModel.lutFiltersListModel)
+        ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex)
+        : 33.0
 
     // Funkcja pomocnicza do synchronizacji stanu
     function syncLocalState() {
@@ -50,6 +60,31 @@ Item {
         previewSaturation = DetailViewModel.saturation;
         previewFlipped = DetailViewModel.flipped;
         previewFilterIndex = DetailViewModel.activeFilterIndex;
+    }
+
+    // ── Auto-zastosuj ─────────────────────────────────────────────────────
+    // Po każdej zmianie suwaka/filtra/odbicia nie trzeba już klikać
+    // "Zastosuj" — applyChanges() woła się sama po 100 ms bezczynności.
+    // Debounce (a nie wywołanie przy każdym pikselu przeciągania) chroni
+    // przed zalewaniem TimelineViewModel::updateItem() dziesiątkami wywołań
+    // podczas jednego przeciągnięcia suwaka.
+    Timer {
+        id: autoApplyTimer
+        interval: 100
+        repeat: false
+        onTriggered: DetailViewModel.applyChanges(
+            previewHue, previewBrightness, previewSaturation,
+            previewFlipped, previewFilterIndex)
+    }
+
+    // Natychmiastowe zatwierdzenie z pominięciem odczekiwania — używane
+    // tam, gdzie VM musi mieć aktualny stan już teraz (np. przed dodaniem
+    // do playlisty), a nie dopiero za 500 ms.
+    function flushPendingApply() {
+        autoApplyTimer.stop();
+        DetailViewModel.applyChanges(
+            previewHue, previewBrightness, previewSaturation,
+            previewFlipped, previewFilterIndex);
     }
 
     Connections {
@@ -102,63 +137,21 @@ Item {
             border.width: 1
         }
 
-        Item {
+        PreviewImage {
+            id: popupBase
             anchors.fill: parent
-
-            Image {
-                id: popupBase
-                anchors.fill: parent
-                source: DetailViewModel.imageUrl
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                mirror: previewFlipped
-                mipmap: true
-                visible: false
-
-                // DODANE: Wymuszenie ładowania oryginalnej rozdzielczości
-                // Zamiast polegać na cache miniatury, instruujemy QML, jakiej wielkości potrzebujemy
-                //sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-                sourceSize: Qt.size(Math.round(width), Math.round(height))
-                cache: false // Alternatywnie, wyłącza użycie wersji zbuforowanej dla miniatury
-            }
-
-            MultiEffect {
-                id: colorEffect
-                source: popupBase
-                anchors.fill: popupBase
-                brightness: previewBrightness
-                saturation: previewSaturation
-                visible: false
-            }
-
-            ShaderEffectSource {
-                id: effectSource
-                sourceItem: colorEffect
-                hideSource: true
-                live: true
-                mipmap: true
-                visible: popupBase.width > 0 && popupBase.height > 0
-            }
-
-            ShaderEffect {
-                anchors.fill: popupBase
-                property variant sourceImage: effectSource
-                property variant lutTexture: Image {
-                    asynchronous: true
-                    source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
-                }
-                // property real lutSize: {
-                //     if (DetailViewModel.activeFilterIndex >= 0) {
-                //         return DetailViewModel.lutFiltersListModel.filterSize(DetailViewModel.activeFilterIndex);
-                //     }
-                //     return 33.0;
-                // }
-                property real lutSize: previewFilterIndex >= 0 ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex) : 33.0
-                property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
-                property real hue: previewHue
-                fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
-            }
+            source: DetailViewModel.imageUrl
+            fillMode: Image.PreserveAspectFit
+            brightness: previewBrightness
+            saturation: previewSaturation
+            hue: previewHue
+            flipped: previewFlipped
+            lutPath: previewLutPath
+            lutSize: previewLutSize
+            sourceSize: Qt.size(Math.round(width), Math.round(height))
+            cache: false
         }
+
 
         ToolButton {
             anchors {
@@ -221,7 +214,8 @@ Item {
 
                 radius: 7
                 color: "#08090c"
-                layer.enabled: true
+                //layer.enabled: true
+                clip: true
 
                 MouseArea {
                     id: thumbHoverArea
@@ -230,53 +224,17 @@ Item {
                     onClicked: previewPopup.open()
                 }
 
-                Image {
+                PreviewImage {
                     id: thumbBase
                     anchors.fill: parent
                     source: DetailViewModel.imageUrl
                     fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    mirror: previewFlipped
-                    mipmap: true // Jakość miniatury
-                    visible: false
-                }
-
-                MultiEffect {
-                    id: thumbColorEffect
-                    source: thumbBase
-                    anchors.fill: thumbBase
                     brightness: previewBrightness
                     saturation: previewSaturation
-                    visible: false
-                }
-
-                ShaderEffectSource {
-                    id: thumbEffectSource
-                    sourceItem: thumbColorEffect
-                    hideSource: true
-                    live: true
-                    mipmap: true
-                }
-
-                ShaderEffect {
-                    anchors.fill: thumbBase
-                    property variant sourceImage: thumbEffectSource
-                    property variant lutTexture: Image {
-                        asynchronous: true
-                        source: previewFilterIndex >= 0 ? "image://lut/" + encodeURIComponent(DetailViewModel.lutFiltersListModel.lutPath(previewFilterIndex)) : ""
-                    }
-                    // property real lutSize: {
-                    //     if (DetailViewModel.activeFilterIndex >= 0) {
-                    //         return DetailViewModel.lutFiltersListModel.filterSize(DetailViewModel.activeFilterIndex);
-                    //     }
-                    //     return 33.0;
-                    // }
-
-                    property real lutSize: previewFilterIndex >= 0 ? DetailViewModel.lutFiltersListModel.filterSize(previewFilterIndex) : 33.0
-
-                    property real filterMix: previewFilterIndex >= 0 ? 1.0 : 0.0
-                    property real hue: previewHue
-                    fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
+                    hue: previewHue
+                    flipped: previewFlipped
+                    lutPath: previewLutPath
+                    lutSize: previewLutSize
                 }
 
                 Label {
@@ -295,7 +253,6 @@ Item {
                     border.width: 1
                 }
 
-                // ZMIANA: Niestandardowy przycisk, aby zyskać perfekcyjne wyśrodkowanie
                 Item {
                     anchors {
                         top: parent.top
@@ -324,7 +281,7 @@ Item {
                         width: 14
                         height: 14
                         source: "zoom-in"
-                        color: "white" // Nowa ikonka z wymuszonym kolorem, odporna na style Qt
+                        color: "white"
                     }
 
                     MouseArea {
@@ -392,7 +349,10 @@ Item {
                         from: -1.0
                         to: 1.0
                         value: previewHue
-                        onMoved: previewHue = value
+                        onMoved: {
+                            previewHue = value;
+                            autoApplyTimer.restart();
+                        }
                     }
                     Label {
                         text: (previewHue > 0 ? "+" : "") + Math.round(previewHue * 180) + "°"
@@ -416,10 +376,13 @@ Item {
                     }
                     Slider {
                         Layout.fillWidth: true
-                        from: -1.0
-                        to: 1.0
+                        from: DetailViewModel.brightnessMin
+                        to: DetailViewModel.brightnessMax
                         value: previewBrightness
-                        onMoved: previewBrightness = value
+                        onMoved: {
+                            previewBrightness = value;
+                            autoApplyTimer.restart();
+                        }
                     }
                     Label {
                         text: (previewBrightness > 0 ? "+" : "") + Math.round(previewBrightness * 100) + "%"
@@ -443,10 +406,13 @@ Item {
                     }
                     Slider {
                         Layout.fillWidth: true
-                        from: -1.0
-                        to: 1.0
+                        from: DetailViewModel.saturationMin
+                        to: DetailViewModel.saturationMax
                         value: previewSaturation
-                        onMoved: previewSaturation = value
+                        onMoved: {
+                            previewSaturation = value;
+                            autoApplyTimer.restart();
+                        }
                     }
                     Label {
                         text: (previewSaturation > 0 ? "+" : "") + Math.round(previewSaturation * 100) + "%"
@@ -466,7 +432,10 @@ Item {
                 text: qsTr("Odwróć poziomo")
                 font.pointSize: 9
                 checked: previewFlipped
-                onToggled: previewFlipped = checked
+                onToggled: {
+                    previewFlipped = checked;
+                    autoApplyTimer.restart();
+                }
             }
 
             Kirigami.Separator {
@@ -475,7 +444,6 @@ Item {
             }
 
             // ── FILTRY ──────────────────────────────────────────────
-            // ZMIANA: Zamieniono ItemDelegate na RowLayout dla idealnego marginesu i zrównania z guzikami
             Item {
                 id: filtersHeader
                 Layout.fillWidth: true
@@ -578,7 +546,10 @@ Item {
 
                         highlighted: previewFilterIndex === index
                         text: model.name || qsTr("Filtr")
-                        onClicked: previewFilterIndex = previewFilterIndex === index ? -1 : index
+                        onClicked: {
+                            previewFilterIndex = previewFilterIndex === index ? -1 : index;
+                            autoApplyTimer.restart();
+                        }
                     }
                 }
             }
@@ -604,22 +575,15 @@ Item {
                 rowSpacing: 6
 
                 Button {
-                    Layout.fillWidth: true
-                    text: qsTr("Zastosuj")
-                    highlighted: true
-                    icon.name: "dialog-ok-apply-symbolic"
-                    onClicked: DetailViewModel.applyChanges(previewHue, previewBrightness, previewSaturation, previewFlipped, previewFilterIndex)
-                    ToolTip.text: qsTr("Zatwierdź korekty")
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 600
-                }
-
-                Button {
+                    Layout.columnSpan: 2
                     Layout.fillWidth: true
                     text: qsTr("Przywróć")
                     icon.name: "edit-undo-symbolic"
-                    onClicked: DetailViewModel.revertChanges()
-                    ToolTip.text: qsTr("Cofnij do ostatnio zatwierdzonych wartości")
+                    onClicked: {
+                        autoApplyTimer.stop();
+                        DetailViewModel.revertChanges();
+                    }
+                    ToolTip.text: qsTr("Wyczyść korekty i usuń filtr")
                     ToolTip.visible: hovered
                     ToolTip.delay: 600
                 }
@@ -629,7 +593,10 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Ustaw jako tapetę")
                     icon.name: "preferences-desktop-wallpaper-symbolic"
-                    onClicked: DetailViewModel.setAsWallpaper()
+                    onClicked: {
+                        detailRoot.flushPendingApply();
+                        DetailViewModel.setAsWallpaper();
+                    }
                 }
 
                 Button {
@@ -637,7 +604,10 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Dodaj do playlisty")
                     icon.name: "media-playlist-append-symbolic"
-                    onClicked: DetailViewModel.addToPlaylist()
+                    onClicked: {
+                        detailRoot.flushPendingApply();
+                        DetailViewModel.addToPlaylist();
+                    }
                 }
             }
         }

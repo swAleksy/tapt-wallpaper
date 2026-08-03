@@ -8,12 +8,39 @@ Kirigami.ApplicationWindow {
     id: root
     width: Math.round(Screen.width * 0.666)
     height: Math.round(Screen.height * 0.666)
-    title: qsTr("Tapt")
+    minimumWidth: 800
+    minimumHeight: 600
+    title: qsTr("TapT")
 
     Connections {
         target: GalleryViewModel
         function onImageSelected(url, name) {
             DetailViewModel.setImage(url, name);
+        }
+    }
+
+    Connections {
+        target: TimelineViewModel
+        function onItemRequestedForEditing(id, sourcePath, name, hue, brightness, saturation, flipped, lutPath) {
+            DetailViewModel.loadForEditing(id, sourcePath, name, hue, brightness, saturation, flipped, lutPath);
+        }
+    }
+
+    Connections {
+        target: DetailViewModel
+        function onItemEditApplied(id, hue, brightness, saturation, flipped, lutPath) {
+            TimelineViewModel.updateItem(id, hue, brightness, saturation, flipped, lutPath)
+        }
+    }
+
+    Connections {
+        target: DetailViewModel
+        function onImageAdded(sourcePath, name, hue, brightness, saturation, flipped, lutPath) {
+            const id = TimelineViewModel.addItem(sourcePath, name, hue, brightness, saturation, flipped, lutPath);
+            // Bez tego kolejne automatyczne applyChanges() (debounce w
+            // DetailView.qml) nie wiedziałyby, do którego elementu kolejki
+            // odesłać zmiany na żywo — patrz DetailViewModel::setEditingItemId.
+            DetailViewModel.setEditingItemId(id);
         }
     }
 
@@ -40,8 +67,8 @@ Kirigami.ApplicationWindow {
 
             Rectangle {
                 id: detailsWindow
-                SplitView.preferredWidth: 220
-                SplitView.minimumWidth: 120
+                SplitView.preferredWidth: 340
+                SplitView.minimumWidth: 300
                 color: Kirigami.Theme.alternateBackgroundColor
                 visible: DetailViewModel.hasImage
                 DetailView {
@@ -52,16 +79,21 @@ Kirigami.ApplicationWindow {
 
         Rectangle {
             id: timeline
-            SplitView.preferredHeight: Math.round(root.height * 0.15)
-            SplitView.minimumHeight: Math.round(root.height * 0.08)
-            SplitView.maximumHeight: Math.round(root.height * 0.35)
+            // Panel osi czasu ma sens dopiero, gdy w playliście jest
+            // przynajmniej jedna tapeta — timelinePanel.playlistCount to
+            // property wystawiona z roota TimelinePanel.qml (reaktywnie
+            // śledzi TimelineViewModel.queueModel).
+            visible: timelinePanel.playlistCount > 0
+
+            // Ustawiamy bezpieczne wartości: min 140px (40px toolbar + 100px na listę)
+            SplitView.preferredHeight: Math.round(root.height * 0.20)
+            SplitView.minimumHeight: 140
+            SplitView.maximumHeight: Math.round(root.height * 0.45)
             color: Kirigami.Theme.backgroundColor
 
-            // ← drop your P3 component here
-            Label {
-                anchors.centerIn: parent
-                text: "Timeline"
-                font.pointSize: 18
+            TimelinePanel {
+                id: timelinePanel
+                anchors.fill: parent
             }
         }
     }
