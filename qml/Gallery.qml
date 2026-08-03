@@ -12,7 +12,7 @@ Item {
 
     FolderDialog {
         id: folderDialog
-        title: "Wybierz folder ze zdjęciami"
+        title: qsTr("Select image folder")
         currentFolder: GalleryViewModel.defaultDir
         onAccepted: GalleryViewModel.loadFolder(folderDialog.selectedFolder)
     }
@@ -28,14 +28,14 @@ Item {
             Layout.margins: 10
 
             Button {
-                text: "Otwórz folder i skanuj"
+                text: qsTr("Open folder and scan")
                 onClicked: folderDialog.open()
             }
 
             Label {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                text: GalleryViewModel.imageCount > 0 ? "Załadowano: " + GalleryViewModel.imageCount + " zdjęć" : ""
+                text: GalleryViewModel.imageCount > 0 ? qsTr("Loaded: %1 images").arg(GalleryViewModel.imageCount) : ""
             }
         }
 
@@ -50,7 +50,7 @@ Item {
 
         Label {
             visible: (!GalleryViewModel.hasFolder && !GalleryViewModel.isLoading) || (GalleryViewModel.isEmpty && GalleryViewModel.errorMessage === "")
-            text: !GalleryViewModel.hasFolder ? "Wybierz folder żeby zobaczyć zdjęcia" : "Brak zdjęć w wybranym folderze"
+            text: !GalleryViewModel.hasFolder ? qsTr("Select a folder to view images") : qsTr("No images in the selected folder")
             Layout.fillWidth: true
             Layout.fillHeight: true
             horizontalAlignment: Text.AlignHCenter
@@ -67,7 +67,7 @@ Item {
 
         GalleryGrid {
             Layout.fillWidth: true
-            Layout.fillHeight: GalleryViewModel.imageCount > 0 // Keep it true as long as we have images
+            Layout.fillHeight: GalleryViewModel.imageCount > 0
             visible: GalleryViewModel.imageCount > 0
         }
 

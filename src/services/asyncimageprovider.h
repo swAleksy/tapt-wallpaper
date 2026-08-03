@@ -36,7 +36,7 @@ public:
             if (requestedSize.isValid() && !requestedSize.isEmpty()) {
                 const QSize nativeSize = reader.size();
                 if (nativeSize.isValid() && !nativeSize.isEmpty()) {
-                    reader.setScaledSize(nativeSize.scaled(requestedSize, Qt::KeepAspectRatio));
+                    reader.setScaledSize(nativeSize.scaled(requestedSize, Qt::KeepAspectRatioByExpanding));
                 }
             }
 

@@ -118,9 +118,12 @@ Item {
                         source: delegateRoot.imageUrl
                         asynchronous: true
 
+                        // Wystarczy czyste cellWidth / cellHeight
                         sourceSize.width: imageGrid.cellWidth
                         sourceSize.height: imageGrid.cellHeight
 
+                        smooth: true
+                        mipmap: true
                         cache: true
 
                         opacity: status === Image.Ready ? 1.0 : 0.0

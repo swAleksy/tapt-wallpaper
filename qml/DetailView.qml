@@ -161,7 +161,7 @@ Item {
             }
             icon.name: "window-close-symbolic"
             onClicked: previewPopup.close()
-            ToolTip.text: qsTr("Zamknij (Esc)")
+            ToolTip.text: qsTr("Close (Esc)")
             ToolTip.visible: hovered
             ToolTip.delay: 500
         }
@@ -185,7 +185,7 @@ Item {
         }
         Label {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("Wybierz obraz\naby zobaczyć szczegóły")
+            text: qsTr("Select an image\nto view details")
             horizontalAlignment: Text.AlignHCenter
             color: Kirigami.Theme.disabledTextColor
             font.pointSize: 10
@@ -240,7 +240,7 @@ Item {
                 Label {
                     anchors.centerIn: parent
                     visible: thumbBase.status !== Image.Ready
-                    text: thumbBase.status === Image.Loading ? qsTr("Ładowanie…") : qsTr("Brak obrazu")
+                    text: thumbBase.status === Image.Loading ? qsTr("Loading...") : qsTr("No image")
                     color: Kirigami.Theme.disabledTextColor
                     font.pointSize: 9
                 }
@@ -288,7 +288,7 @@ Item {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: previewPopup.open()
-                        ToolTip.text: qsTr("Pełny podgląd · lub dwuklik")
+                        ToolTip.text: qsTr("Full preview")
                         ToolTip.visible: containsMouse
                         ToolTip.delay: 500
                     }
@@ -302,7 +302,7 @@ Item {
                 Layout.rightMargin: 14
                 Layout.topMargin: 8
                 Layout.bottomMargin: 2
-                text: DetailViewModel.imageName || qsTr("Nieznana tapeta")
+                text: DetailViewModel.imageName || qsTr("Unknown wallpaper")
                 font.bold: true
                 font.pointSize: 10
                 elide: Text.ElideRight
@@ -320,7 +320,7 @@ Item {
                 Layout.leftMargin: 14
                 Layout.topMargin: 8
                 Layout.bottomMargin: 4
-                text: qsTr("KOREKTY")
+                text: qsTr("ADJUSTMENTS")
                 font.pointSize: 7
                 font.letterSpacing: 1.2
                 font.bold: true
@@ -339,7 +339,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 8
                     Label {
-                        text: qsTr("Barwa")
+                        text: qsTr("Hue")
                         font.pointSize: 9
                         Layout.preferredWidth: 72
                         color: Kirigami.Theme.textColor
@@ -369,7 +369,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 8
                     Label {
-                        text: qsTr("Jasność")
+                        text: qsTr("Brightness")
                         font.pointSize: 9
                         Layout.preferredWidth: 72
                         color: Kirigami.Theme.textColor
@@ -399,7 +399,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 8
                     Label {
-                        text: qsTr("Nasycenie")
+                        text: qsTr("Saturation")
                         font.pointSize: 9
                         Layout.preferredWidth: 72
                         color: Kirigami.Theme.textColor
@@ -429,7 +429,7 @@ Item {
                 Layout.leftMargin: 10
                 Layout.topMargin: 4
                 Layout.bottomMargin: 2
-                text: qsTr("Odwróć poziomo")
+                text: qsTr("Flip horizontally")
                 font.pointSize: 9
                 checked: previewFlipped
                 onToggled: {
@@ -461,7 +461,7 @@ Item {
                     Label {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
-                        text: qsTr("Filtry")
+                        text: qsTr("Filters")
                         font.bold: true
                         font.pointSize: 9
                         color: Kirigami.Theme.textColor
@@ -545,7 +545,7 @@ Item {
                         required property var model
 
                         highlighted: previewFilterIndex === index
-                        text: model.name || qsTr("Filtr")
+                        text: model.name || qsTr("Filter")
                         onClicked: {
                             previewFilterIndex = previewFilterIndex === index ? -1 : index;
                             autoApplyTimer.restart();
@@ -577,13 +577,13 @@ Item {
                 Button {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    text: qsTr("Przywróć")
+                    text: qsTr("Restore")
                     icon.name: "edit-undo-symbolic"
                     onClicked: {
                         autoApplyTimer.stop();
                         DetailViewModel.revertChanges();
                     }
-                    ToolTip.text: qsTr("Wyczyść korekty i usuń filtr")
+                    ToolTip.text: qsTr("Clear adjustments and remove filter")
                     ToolTip.visible: hovered
                     ToolTip.delay: 600
                 }
@@ -591,7 +591,7 @@ Item {
                 Button {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    text: qsTr("Ustaw jako tapetę")
+                    text: qsTr("Set as wallpaper")
                     icon.name: "preferences-desktop-wallpaper-symbolic"
                     onClicked: {
                         detailRoot.flushPendingApply();
@@ -602,7 +602,7 @@ Item {
                 Button {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    text: qsTr("Dodaj do playlisty")
+                    text: qsTr("Add to playlist")
                     icon.name: "media-playlist-append-symbolic"
                     onClicked: {
                         detailRoot.flushPendingApply();
