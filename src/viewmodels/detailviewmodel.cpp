@@ -58,6 +58,13 @@ void DetailViewModel::setImage(const QString& url, const QString& name)
 
 void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation, bool flipped, int filterIndex)
 {
+    // Jasność ograniczona do -50%…+50%, nasycenie do -90%…+90% — niezależnie
+    // od tego, skąd trafiła tu wartość (suwak w DetailView.qml jest już
+    // ograniczony do tego zakresu, ale clamp tutaj jest ostatnią linią
+    // obrony, np. gdy dane pochodzą ze starszego elementu kolejki).
+    brightness = clampBrightness(brightness);
+    saturation = clampSaturation(saturation);
+
     m_current = { hue, brightness, saturation, flipped, filterIndex };
 
     emit hueChanged();
@@ -81,8 +88,29 @@ void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation
 
 void DetailViewModel::revertChanges()
 {
+    // "Przywróć" czyści korekty i filtr do stanu domyślnego (zero), a NIE
+    // cofa do ostatnio zatwierdzonych wartości (applyChanges()).
+    m_current = ColorState {};
+
+    emit hueChanged();
+    emit brightnessChanged();
+    emit saturationChanged();
+    emit flippedChanged();
+    emit activeFilterIndexChanged();
 
     emit stateReverted();
+
+    // Tak samo jak w applyChanges(): jeśli edytujemy element już obecny
+    // w kolejce, odeślij wyzerowany stan dalej, żeby podgląd na osi czasu
+    // też wyczyścił się na żywo, a nie tylko lokalny podgląd w DetailView.
+    if (!m_editingPlaylistItemId.isEmpty()) {
+        emit itemEditApplied(m_editingPlaylistItemId,
+                              m_current.hue,
+                              m_current.brightness,
+                              m_current.saturation,
+                              m_current.flipped,
+                              QString());
+    }
 }
 
 void DetailViewModel::setAsWallpaper()
@@ -148,7 +176,7 @@ void DetailViewModel::loadForEditing(
         }
     }
 
-    m_current = ColorState { hue, brightness, saturation, flipped, filterIndex };
+    m_current = ColorState { hue, clampBrightness(brightness), clampSaturation(saturation), flipped, filterIndex };
 
     if (urlChanged)
         emit imageUrlChanged();
@@ -164,4 +192,9 @@ void DetailViewModel::loadForEditing(
     emit activeFilterIndexChanged();
 
     emit imageLoaded();
+}
+
+void DetailViewModel::setEditingItemId(const QString &id)
+{
+    m_editingPlaylistItemId = id;
 }

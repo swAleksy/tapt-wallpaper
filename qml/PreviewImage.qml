@@ -38,13 +38,12 @@ import QtQuick.Effects
 //     brak lutPath), pomijamy wizualnie cały łańcuch efektów i pokazujemy
 //     zwykły Image. Odwrócenie (flipped) samo w sobie NIE wymaga łańcucha
 //     efektów — obsługuje je Image.mirror.
-//   • ShaderEffectSource ma live:false. Automatyczny re-render co klatkę
-//     (live:true) ma sens przy 1–2 instancjach w DetailView, ale przy
-//     niezwirtualizowanym Repeaterze w trybie "Time of the day" (potencjalnie
-//     kilkanaście–kilkadziesiąt instancji naraz) byłby to ciągły koszt GPU
-//     nawet gdy obraz się wizualnie nie zmienia. Zamiast tego wywołujemy
-//     scheduleUpdate() ręcznie, tylko wtedy, gdy coś faktycznie się zmieniło
-//     (parametry, wynik ładowania obrazu, rozmiar).
+//   • ShaderEffectSource działa z domyślnym live: true. Wbrew powszechnemu
+//     przekonaniu, QSGLayer z live: true re-renderuje się tylko wtedy, gdy
+//     poddrzewo źródła jest "dirty" (zmiana właściwości, geometrii, wgranie
+//     obrazu). Zapewnia to poprawne działanie przy delegatach tworzonych
+//     asynchronicznie (np. w StackLayout / ListView / TimelinePanel) bez
+//     żadnego dodatkowego kosztu wydajnościowego na statycznych klatkach.
 Item {
     id: root
 
@@ -80,14 +79,14 @@ Item {
         mirror: root.flipped
         mipmap: true
         cache: root.cache
+
         // Gdy nie trzeba żadnych korekt, ten Image jest wyświetlany wprost —
         // reszta łańcucha poniżej zostaje bez efektu wizualnego i bez pracy.
         visible: !root.needsEffects
         sourceSize: (root.sourceSize.width > 0 && root.sourceSize.height > 0) ? root.sourceSize : undefined
 
-        onStatusChanged: effectSource.scheduleUpdate()
-        onWidthChanged: effectSource.scheduleUpdate()
-        onHeightChanged: effectSource.scheduleUpdate()
+        // Usunięto ręczne wywołania `effectSource.scheduleUpdate()`
+        // Silnik sam wie o zmianie statusu/rozmiaru i przebuduje węzeł.
     }
 
     MultiEffect {
@@ -100,33 +99,36 @@ Item {
     }
 
     ShaderEffectSource {
-        id: effectSource
-        sourceItem: colorEffect
-        hideSource: true
-        live: false
-        mipmap: true
-        visible: false
+            id: effectSource
+            sourceItem: colorEffect
+            hideSource: true
+            mipmap: true
 
-        Component.onCompleted: scheduleUpdate()
-    }
+            // Zamiast sztywnego true, uaktywniamy "live" tylko gdy efekty są włączone.
+            live: root.needsEffects
 
-    ShaderEffect {
-        anchors.fill: parent
-        visible: root.needsEffects
-        property variant sourceImage: effectSource
-        property variant lutTexture: Image {
-            asynchronous: true
-            source: root.lutPath.length > 0 ? "image://lut/" + encodeURIComponent(root.lutPath) : ""
+            // KRYTYCZNE: USUNIĘTO `visible: false`!
+            // Jeśli dodasz tu visible: false, Scene Graph wyrzuci ten element
+            // z drzewa renderowania i przestanie generować jakąkolwiek teksturę!
         }
-        property real lutSize: root.lutSize
-        property real filterMix: root.lutPath.length > 0 ? 1.0 : 0.0
-        property real hue: root.hue
-        fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
-    }
 
-    onHueChanged: effectSource.scheduleUpdate()
-    onBrightnessChanged: effectSource.scheduleUpdate()
-    onSaturationChanged: effectSource.scheduleUpdate()
-    onLutPathChanged: effectSource.scheduleUpdate()
-    onLutSizeChanged: effectSource.scheduleUpdate()
+        ShaderEffect {
+            anchors.fill: parent
+            visible: root.needsEffects
+            property variant sourceImage: effectSource
+            property variant lutTexture: lutImg
+            // realny rozmiar sześcianu = wysokość wczytanej tekstury LUT,
+            // niezależnie od tego, co (jeśli cokolwiek) przekazał wywołujący
+            property real lutSize: lutImg.status === Image.Ready ? lutImg.sourceSize.height : root.lutSize
+            property real filterMix: root.lutPath.length > 0 ? 1.0 : 0.0
+            property real hue: root.hue
+            fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
+
+            Image {
+                id: lutImg
+                visible: false
+                asynchronous: true
+                source: root.lutPath.length > 0 ? "image://lut/" + encodeURIComponent(root.lutPath) : ""
+            }
+        }
 }

@@ -89,3 +89,20 @@ void QueueModel::resetToDefaults(const QString& id)
         }
     }
 }
+
+void QueueModel::move(int from, int to)
+{
+    if (from == to || from < 0 || from >= m_items.size() || to < 0 || to >= m_items.size())
+        return;
+
+    // beginMoveRows wymaga "destination" jako indeksu PO przesunięciu w dół,
+    // patrz dokumentacja QAbstractItemModel::beginMoveRows.
+    const int destination = (to > from) ? to + 1 : to;
+    if (!beginMoveRows(QModelIndex(), from, from, QModelIndex(), destination))
+        return;
+
+    const QueueItem moved = m_items.takeAt(from);
+    m_items.insert(to, moved);
+
+    endMoveRows();
+}

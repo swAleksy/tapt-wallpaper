@@ -20,13 +20,14 @@ class GalleryViewModel : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(ImagesModel* imagesModel READ imagesModel CONSTANT)
-    Q_PROPERTY(bool        isLoading    READ isLoading    NOTIFY isLoadingChanged)
-    Q_PROPERTY(int         imageCount   READ imageCount   NOTIFY imageCountChanged)
-    Q_PROPERTY(QString     errorMessage READ errorMessage NOTIFY errorMessageChanged)
-    Q_PROPERTY(bool        hasFolder    READ hasFolder    NOTIFY hasFolderChanged)
-    Q_PROPERTY(bool        isEmpty      READ isEmpty      NOTIFY isEmptyChanged)
-    Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedIndexChanged)
-    Q_PROPERTY(QUrl defaultDir READ defaultDir CONSTANT) // default picture dir location
+    Q_PROPERTY(bool         isLoading    READ isLoading    NOTIFY isLoadingChanged)
+    Q_PROPERTY(int          imageCount   READ imageCount   NOTIFY imageCountChanged)
+    Q_PROPERTY(QString      errorMessage READ errorMessage NOTIFY errorMessageChanged)
+    Q_PROPERTY(bool         hasFolder    READ hasFolder    NOTIFY hasFolderChanged)
+    Q_PROPERTY(bool         isEmpty      READ isEmpty      NOTIFY isEmptyChanged)
+    Q_PROPERTY(int          selectedIndex READ selectedIndex NOTIFY selectedIndexChanged)
+    Q_PROPERTY(QUrl         defaultDir READ defaultDir CONSTANT) // default picture dir location
+    Q_PROPERTY(bool         hasMoreImages READ hasMoreImages NOTIFY hasMoreImagesChanged)
 
 public:
     explicit GalleryViewModel(QObject *parent = nullptr);
@@ -37,6 +38,7 @@ public:
         return new GalleryViewModel();
     }
 
+
     // Gettery — czyta Q_PROPERTY
     ImagesModel* imagesModel()  const   { return m_model; }
     bool isLoading()            const   { return m_isLoading; }
@@ -46,6 +48,7 @@ public:
     bool isEmpty()              const   { return m_hasFolder && m_imageCount == 0 && !m_isLoading; }
     QUrl defaultDir()           const   { return QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)); }
     int selectedIndex()         const   { return m_selectedIndex; }
+    bool hasMoreImages()        const   { return m_loadedCount < m_allItems.count(); }
 
     // Akcje wywoływane z QML
     Q_INVOKABLE void loadFolder(const QUrl &folderUrl);
@@ -60,6 +63,7 @@ signals:
     void isEmptyChanged();
     void selectedIndexChanged();
     void imageSelected(const QString &url, const QString &name);
+    void hasMoreImagesChanged();
 
 private:
     // Prywatne settery — emitują sygnały, QML samo się odświeża

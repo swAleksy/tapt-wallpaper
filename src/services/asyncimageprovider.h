@@ -8,6 +8,8 @@
 #include <QQuickImageResponse>
 #include <QQuickTextureFactory>
 #include <QtConcurrent>
+#include <memory>
+#include <atomic>
 
 class AsyncImageResponse : public QQuickImageResponse {
     Q_OBJECT
@@ -28,26 +30,20 @@ public:
                 return QImage();
 
             QImageReader reader(id);
-            // Honoruje orientację EXIF przy okazji — poprzednia wersja (QImage(id))
-            // robiła to automatycznie tylko dla formatów obsługujących auto-transform
-            // domyślnie; tu ustawiamy to jawnie.
+            // Honoruje orientację EXIF
             reader.setAutoTransform(true);
 
             if (requestedSize.isValid() && !requestedSize.isEmpty()) {
-                const QSize nativeSize = reader.size(); // czyta nagłówek, nie dekoduje pikseli
+                const QSize nativeSize = reader.size();
                 if (nativeSize.isValid() && !nativeSize.isEmpty()) {
-                    // KeepAspectRatio ręcznie — setScaledSize() samo nie zachowuje proporcji
                     reader.setScaledSize(nativeSize.scaled(requestedSize, Qt::KeepAspectRatio));
                 }
-                // jeśli nativeSize nieznany (np. reader nie umie odczytać nagłówka bez
-                // pełnego dekodu dla danego formatu) — celowo NIE ustawiamy scaledSize
-                // i lecimy pełnym odczytem niżej; unikamy zgadywania rozmiaru.
             }
 
             if (abortFlag->load())
                 return QImage();
 
-            return reader.read(); // QImage() jeśli się nie uda — obsłużone niżej jak wcześniej
+            return reader.read();
         });
 
         m_watcher.setFuture(future);
@@ -59,7 +55,16 @@ public:
         m_abortFlag->store(true);
     }
 
-    QQuickTextureFactory* textureFactory() const override { return QQuickTextureFactory::textureFactoryForImage(m_image); }
+    // POPRAWKA 1: Natychmiastowe ubicie procesu na żądanie QML (np. przy scrollowaniu)
+    void cancel() override
+    {
+        m_abortFlag->store(true);
+    }
+
+    QQuickTextureFactory* textureFactory() const override
+    {
+        return QQuickTextureFactory::textureFactoryForImage(m_image);
+    }
 
 private slots:
     void handleFinished()
@@ -74,9 +79,10 @@ public:
     QQuickImageResponse* requestImageResponse(const QString& id, const QSize& requestedSize) override
     {
         const QString path = QUrl::fromPercentEncoding(id.toUtf8());
-        return new AsyncImageResponse(path, requestedSize.isValid() ? requestedSize : QSize(256, 256));
+        // POPRAWKA 2: Usunięto sztywny fallback do wymuszania 256x256,
+        // pozwalamy silnikowi zadecydować lub wczytać pełny rozmiar.
+        return new AsyncImageResponse(path, requestedSize);
     }
 };
-
 
 #endif // ASYNCIMAGERESPONSE_H

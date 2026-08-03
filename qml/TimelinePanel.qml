@@ -8,20 +8,20 @@ Item {
     id: rootTimeline
     anchors.fill: parent
 
+    implicitHeight: 140
+    Layout.minimumHeight: 140
+
     // Trzyma wybrany tryb z ComboBoxa: 0 = Random, 1 = Time of the day
     property int currentMode: 0
 
-    // Budowanie URL z surowej ścieżki (model.sourcePath -> "image://taptimage/...")
-    // przeniesione do PreviewImage — jedno miejsce zamiast identycznej funkcji
-    // w każdym widoku, który wyświetla obrazy z kolejki. PreviewImage stosuje
-    // też te same efekty korekcji/LUT co podgląd w DetailView.
+    readonly property int playlistCount: repeaterTimeline.count
 
     // ════════════════════════════════════════════════════════════════════════
-    //  GÓRNY PASEK NARZĘDZIOWY
+    //  DOLNY PASEK NARZĘDZIOWY (pod obszarem podglądu tapet)
     // ════════════════════════════════════════════════════════════════════════
     RowLayout {
         id: toolbar
-        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         height: 40
@@ -55,7 +55,7 @@ Item {
     // ════════════════════════════════════════════════════════════════════════
     Popup {
         id: configPopup
-        y: toolbar.height + 4
+        y: toolbar.y - height - 8
         x: 8
         width: 320
         leftMargin: 12
@@ -115,8 +115,8 @@ Item {
     //  PRZESTRZEŃ GŁÓWNA - STOS WIDOKÓW
     // ════════════════════════════════════════════════════════════════════════
     StackLayout {
-        anchors.top: toolbar.bottom
-        anchors.bottom: parent.bottom
+        anchors.top: parent.top
+        anchors.bottom: toolbar.top
         anchors.left: parent.left
         anchors.right: parent.right
         currentIndex: rootTimeline.currentMode
@@ -128,10 +128,9 @@ Item {
             id: randomList
             orientation: ListView.Horizontal
             spacing: 8
+            // left/right margins handle horizontal spacing from the edges of the screen
             leftMargin: 8
             rightMargin: 8
-            topMargin: 8
-            bottomMargin: 8
             clip: true
 
             model: DelegateModel {
@@ -142,8 +141,11 @@ Item {
                     id: delegateRoot
                     required property var model
                     required property int index
+
                     width: 120
+                    // Fix 1: Emulate top and bottom container padding
                     height: randomList.height - 16
+                    y: 8
 
                     keys: ["randomItem"]
                     onEntered: (drag) => {
@@ -170,10 +172,7 @@ Item {
                         states: [
                             State {
                                 when: itemRect.Drag.active
-                                ParentChange {
-                                    target: itemRect
-                                    parent: randomList
-                                }
+                                ParentChange { target: itemRect; parent: randomList }
                                 PropertyChanges {
                                     target: itemRect
                                     opacity: 0.8
@@ -188,15 +187,15 @@ Item {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
-                            height: parent.height * 0.7
+
+                            // Fix 2: Keep image inside the border bounds so they don't overlap
+                            anchors.topMargin: itemRect.border.width
+                            anchors.leftMargin: itemRect.border.width
+                            anchors.rightMargin: itemRect.border.width
+                            height: (parent.height * 0.7) - itemRect.border.width
+
                             source: model.sourcePath
                             fillMode: Image.PreserveAspectCrop
-
-                            // hue: model.hue
-                            // brightness: model.brightness
-                            // saturation: model.saturation
-                            // flipped: model.flipped
-                            // lutPath: model.lutPath
 
                             hue: delegateRoot.model.hue
                             brightness: delegateRoot.model.brightness
@@ -211,7 +210,13 @@ Item {
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             anchors.right: parent.right
-                            height: parent.height * 0.3
+
+                            // Fix 2 (cont): Keep label inside the border bounds
+                            anchors.bottomMargin: itemRect.border.width
+                            anchors.leftMargin: itemRect.border.width
+                            anchors.rightMargin: itemRect.border.width
+                            height: (parent.height * 0.3) - itemRect.border.width
+
                             text: model.name || qsTr("Unknown")
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -226,6 +231,7 @@ Item {
                             cursorShape: Qt.OpenHandCursor
                             onPressed: cursorShape = Qt.ClosedHandCursor
                             onReleased: cursorShape = Qt.OpenHandCursor
+                            onClicked: TimelineViewModel.editItem(delegateRoot.model.id)
                         }
                     }
                 }
@@ -239,180 +245,259 @@ Item {
             id: timeContainer
             clip: true
 
-            // Zmienna kluczowa - ile pikseli na 1 minutę przy aktualnej szerokości okna
+            // Wymuszenie minimalnej wysokości w StackLayout/SplitView:
+            // 20px (nagłówek godzin) + 40px (minimalna ścieżka kafelków) + 8px marginesów = 68px min.
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            implicitHeight: 68
+            Layout.minimumHeight: 68
+
             property real pxPerMin: width / 1440.0
+            property int minSlotMinutes: 30
+            property var slots: []
 
-            // Tło osi czasu z podziałką co 1 godzinę
-            Row {
-                anchors.fill: parent
-                Repeater {
-                    model: 24
-                    Rectangle {
-                        width: timeContainer.width / 24
-                        height: timeContainer.height
-                        color: "transparent"
-                        border.color: Qt.rgba(1,1,1,0.05)
-                        border.width: 1
+            function snapTo5(val) { return Math.round(val / 5) * 5; }
 
-                        Label {
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.margins: 4
-                            text: index + ":00"
-                            color: Kirigami.Theme.disabledTextColor
-                            font.pointSize: 8
+            function evenlyDistribute() {
+                const count = repeaterTimeline.count;
+                if (count === 0) {
+                    slots = [];
+                    return;
+                }
+                const newSlots = [];
+                for (let i = 0; i < count; ++i) {
+                    const start = Math.round(i * 1440 / count);
+                    const end = (i === count - 1) ? 1440 : Math.round((i + 1) * 1440 / count);
+                    newSlots.push({ startMin: start, endMin: end });
+                }
+                slots = newSlots;
+            }
+
+            function moveDivider(i, newMin) {
+                const left = slots[i];
+                const right = slots[i + 1];
+                if (!left || !right) return;
+
+                let clamped = snapTo5(newMin);
+                clamped = Math.max(left.startMin + minSlotMinutes,
+                                   Math.min(clamped, right.endMin - minSlotMinutes));
+
+                const updated = slots.slice();
+                updated[i] = { startMin: left.startMin, endMin: clamped };
+                updated[i + 1] = { startMin: clamped, endMin: right.endMin };
+                slots = updated;
+            }
+
+            function exportTimeSlots() {
+                const result = [];
+                for (let i = 0; i < repeaterTimeline.count; ++i) {
+                    const item = repeaterTimeline.itemAt(i);
+                    if (!item) continue;
+                    result.push({
+                        id: item.model.id,
+                        name: item.model.name,
+                        startMin: item.startMin,
+                        endMin: item.endMin
+                    });
+                }
+                return result;
+            }
+
+            Component.onCompleted: evenlyDistribute()
+
+            // ── 1. Główka z etykietami godzin (Stała wysokość) ──────────────────
+            Item {
+                id: labelsRow
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 20
+
+                Row {
+                    anchors.fill: parent
+                    Repeater {
+                        model: 24
+                        Item {
+                            width: labelsRow.width / 24
+                            height: labelsRow.height
+                            Label {
+                                anchors.bottom: parent.bottom
+                                anchors.left: parent.left
+                                anchors.margins: 4
+                                text: index + ":00"
+                                color: Kirigami.Theme.disabledTextColor
+                                font.pointSize: 8
+                            }
                         }
                     }
                 }
             }
 
-            Repeater {
-                model: TimelineViewModel.queueModel
+            // ── 2. Obszar kafelków i linii (Wypełnia resztę miejsca, min 40px) ───
+            Item {
+                id: trackContent
+                anchors.top: labelsRow.bottom
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
 
-                Item {
-                    id: timeItem
-                    height: parent.height * 0.6
-                    y: parent.height * 0.2
+                // Tło osi czasu z pionowymi liniami co 1 godzinę
+                Row {
+                    anchors.fill: parent
+                    Repeater {
+                        model: 24
+                        Rectangle {
+                            width: trackContent.width / 24
+                            height: trackContent.height
+                            color: "transparent"
+                            border.color: Qt.rgba(1,1,1,0.05)
+                            border.width: 1
+                        }
+                    }
+                }
 
-                    // Stan przedziału czasowego dla danego elementu
-                    property int startMin: index * 120
-                    property int endMin: startMin + 120
-                    property int durationMin: endMin - startMin
+                // Kafelki
+                Repeater {
+                    id: repeaterTimeline
+                    model: TimelineViewModel.queueModel
+                    onCountChanged: timeContainer.evenlyDistribute()
 
-                    // Sztywne powiązanie szerokości i x do kontenera rodzica
-                    x: timeItem.startMin * timeContainer.pxPerMin
-                    width: (timeItem.endMin - timeItem.startMin) * timeContainer.pxPerMin
+                    DropArea {
+                        id: delegateRoot
+                        required property var model
+                        required property int index
 
-                    function snapTo5(val) { return Math.round(val / 5) * 5; }
+                        readonly property int startMin: timeContainer.slots.length > index
+                            ? timeContainer.slots[index].startMin : 0
+                        readonly property int endMin: timeContainer.slots.length > index
+                            ? timeContainer.slots[index].endMin : 0
+
+                        y: 0
+                        height: trackContent.height
+                        x: startMin * timeContainer.pxPerMin
+                        width: (endMin - startMin) * timeContainer.pxPerMin
+
+                        keys: ["timelineItem"]
+                        onEntered: (drag) => {
+                            if (drag.source && drag.source.index !== delegateRoot.index)
+                                TimelineViewModel.moveItem(drag.source.index, delegateRoot.index)
+                        }
+
+                        Rectangle {
+                            id: itemRect
+                            anchors.fill: parent
+                            color: Kirigami.Theme.alternateBackgroundColor
+                            border.color: dragArea.drag.active ? Kirigami.Theme.highlightColor : Qt.rgba(1,1,1,0.2)
+                            border.width: dragArea.drag.active ? 2 : 1
+                            radius: 4
+                            clip: true
+
+                            Drag.active: dragArea.drag.active
+                            Drag.source: delegateRoot
+                            Drag.keys: ["timelineItem"]
+                            Drag.hotSpot.x: width / 2
+                            Drag.hotSpot.y: height / 2
+
+                            states: [
+                                State {
+                                    when: itemRect.Drag.active
+                                    ParentChange { target: itemRect; parent: trackContent }
+                                    PropertyChanges {
+                                        target: itemRect
+                                        opacity: 0.85
+                                        anchors.fill: undefined
+                                        width: delegateRoot.width
+                                        height: delegateRoot.height
+                                    }
+                                }
+                            ]
+
+                            PreviewImage {
+                                id: squarePreview
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.leftMargin: itemRect.border.width + 4
+
+                                height: Math.max(10, parent.height - (itemRect.border.width * 2) - 4)
+                                width: height
+
+                                source: model.sourcePath
+                                fillMode: Image.PreserveAspectCrop
+                                hue: model.hue
+                                brightness: model.brightness
+                                saturation: model.saturation
+                                flipped: model.flipped
+                                lutPath: model.lutPath
+                                sourceSize: Qt.size(Math.round(height), Math.round(height))
+                            }
+
+                            Label {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.top: parent.top
+                                anchors.topMargin: 4
+
+                                text: model.name || qsTr("Unknown")
+                                font.pixelSize: 10
+                                opacity: 0.6
+                                color: "white"
+                                style: Text.Outline
+                                styleColor: "#80000000"
+                            }
+
+                            MouseArea {
+                                id: dragArea
+                                anchors.fill: parent
+                                drag.target: itemRect
+                                drag.axis: Drag.XAxis
+                                cursorShape: dragArea.drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+                                onClicked: TimelineViewModel.editItem(model.id)
+                            }
+                        }
+                    }
+                }
+
+                // Uchwyty granic między kafelkami
+                Repeater {
+                    id: dividerRepeater
+                    model: Math.max(0, repeaterTimeline.count - 1)
 
                     Rectangle {
-                        id: timeRectVisual
-                        anchors.fill: parent
-                        color: Kirigami.Theme.alternateBackgroundColor
-                        border.color: Qt.rgba(1,1,1,0.2)
-                        radius: 4
-                        clip: true
+                        id: divider
+                        required property int index
 
-                        PreviewImage {
-                            anchors.fill: parent
-                            source: model.sourcePath
-                            fillMode: Image.PreserveAspectCrop
-                            hue: model.hue
-                            brightness: model.brightness
-                            saturation: model.saturation
-                            flipped: model.flipped
-                            lutPath: model.lutPath
-                            // sourceSize celowo liczony tylko z height (stabilny podczas
-                            // przeciągania uchwytów start/end — zmienia się tylko width),
-                            // żeby resize nie wywoływał ciągłego redekodowania obrazu.
-                            sourceSize: Qt.size(Math.round(height * 3), height)
-                        }
+                        width: 4
+                        height: parent.height
+                        x: (timeContainer.slots.length > index
+                            ? timeContainer.slots[index].endMin : 0) * timeContainer.pxPerMin - width / 2
+                        z: 10
+                        radius: 2
+                        color: dividerArea.containsMouse || dividerArea.pressed
+                            ? Kirigami.Theme.highlightColor
+                            : Qt.rgba(1,1,1,0.25)
 
-                        Label {
-                            anchors.centerIn: parent
-                            text: model.name || qsTr("Unknown")
-                            font.bold: true
-                            style: Text.Outline
-                            styleColor: "black"
-                            color: "white"
-                        }
-
-                        // Środek - Przesuwanie na osi czasu
                         MouseArea {
+                            id: dividerArea
                             anchors.fill: parent
-
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-
-                            cursorShape: Qt.SizeAllCursor
-
-                            property real startDragX: 0
-                            property int initialStartMin: 0
-
-                            onPressed: (mouse) => {
-                                // mapToItem pobiera absolutną pozycję względem głównego kontenera (timeContainer)
-                                // uniemożliwia to skakanie gdy obiekt X się zmienia podczas Drag & Drop.
-                                var mapped = mapToItem(timeContainer, mouse.x, mouse.y)
-                                startDragX = mapped.x
-                                initialStartMin = timeItem.startMin
-                            }
-                            onPositionChanged: (mouse) => {
-                                if (pressed) {
-                                    var mapped = mapToItem(timeContainer, mouse.x, mouse.y)
-                                    var deltaPx = mapped.x - startDragX
-                                    var deltaMin = snapTo5(deltaPx / timeContainer.pxPerMin)
-                                    var newStart = initialStartMin + deltaMin
-
-                                    // Limity krawędzi 00:00 - 23:59
-                                    if (newStart < 0) newStart = 0
-                                    if (newStart + timeItem.durationMin > 1440) newStart = 1440 - timeItem.durationMin
-
-                                    var duration = timeItem.endMin - timeItem.startMin
-
-                                    timeItem.startMin = newStart
-                                    timeItem.endMin = newStart + duration
-                                }
-                            }
-                        }
-
-                        // LEWY CHWYT - Zmiana startu
-                        MouseArea {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: 10
+                            anchors.margins: -4
+                            hoverEnabled: true
                             cursorShape: Qt.SizeHorCursor
 
                             property real startDragX: 0
-                            property int initialStartMin: 0
+                            property int initialBoundary: 0
 
                             onPressed: (mouse) => {
-                                var mapped = mapToItem(timeContainer, mouse.x, mouse.y)
+                                var mapped = mapToItem(trackContent, mouse.x, mouse.y)
                                 startDragX = mapped.x
-                                initialStartMin = timeItem.startMin
+                                initialBoundary = timeContainer.slots[divider.index].endMin
                             }
                             onPositionChanged: (mouse) => {
                                 if (pressed) {
-                                    var mapped = mapToItem(timeContainer, mouse.x, mouse.y)
+                                    var mapped = mapToItem(trackContent, mouse.x, mouse.y)
                                     var deltaPx = mapped.x - startDragX
-                                    var deltaMin = snapTo5(deltaPx / timeContainer.pxPerMin)
-                                    var newStart = initialStartMin + deltaMin
-
-                                    if (newStart < 0) newStart = 0
-                                    if (newStart > timeItem.endMin - 5) newStart = timeItem.endMin - 5
-
-                                    timeItem.startMin = newStart
-                                }
-                            }
-                        }
-
-                        // PRAWY CHWYT - Zmiana końca
-                        MouseArea {
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: 10
-                            cursorShape: Qt.SizeHorCursor
-
-                            property real startDragX: 0
-                            property int initialEndMin: 0
-
-                            onPressed: (mouse) => {
-                                var mapped = mapToItem(timeContainer, mouse.x, mouse.y)
-                                startDragX = mapped.x
-                                initialEndMin = timeItem.endMin
-                            }
-                            onPositionChanged: (mouse) => {
-                                if (pressed) {
-                                    var mapped = mapToItem(timeContainer, mouse.x, mouse.y)
-                                    var deltaPx = mapped.x - startDragX
-                                    var deltaMin = snapTo5(deltaPx / timeContainer.pxPerMin)
-                                    var newEnd = initialEndMin + deltaMin
-
-                                    if (newEnd > 1440) newEnd = 1440
-                                    if (newEnd < timeItem.startMin + 5) newEnd = timeItem.startMin + 5
-
-                                    timeItem.endMin = newEnd
+                                    var deltaMin = timeContainer.snapTo5(deltaPx / timeContainer.pxPerMin)
+                                    timeContainer.moveDivider(divider.index, initialBoundary + deltaMin)
                                 }
                             }
                         }

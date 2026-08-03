@@ -120,3 +120,8 @@ void TimelineViewModel::editItem(const QString &id)
         }
     }
 }
+
+void TimelineViewModel::moveItem(int from, int to)
+{
+    m_model->move(from, to);
+}

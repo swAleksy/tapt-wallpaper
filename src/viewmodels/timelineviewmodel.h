@@ -38,6 +38,8 @@ public:
     Q_INVOKABLE void removeItem(const QString& id);
     Q_INVOKABLE void editItem(const QString& id);
 
+    Q_INVOKABLE void moveItem(int from, int to);
+
 signals:
     void itemRequestedForEditing(
         const QString& id,

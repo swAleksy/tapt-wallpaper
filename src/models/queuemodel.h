@@ -29,6 +29,7 @@ public:
     void addOrUpdate(const QueueItem& item); // po id
     void remove(const QString& id);
     void resetToDefaults(const QString& id); // edit = EditState::identity()
+    void move(int from, int to);
 
 private:
     QList<QueueItem> m_items;

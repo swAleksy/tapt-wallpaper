@@ -11,18 +11,25 @@ import org.kde.taptwallpaper
 //    imageUrl          : url
 //    imageName         : string
 //    hue               : real   // −1.0 … +1.0
-//    brightness        : real   // −1.0 … +1.0
-//    saturation        : real   // −1.0 … +1.0
+//    brightness        : real   // brightnessMin … brightnessMax (−0.5 … +0.5)
+//    saturation        : real   // saturationMin … saturationMax (−0.9 … +0.9)
 //    flipped           : bool
 //    activeFilterIndex : int    // −1 = brak
 //    filtersModel      : model  // role: name (string)
+//    brightnessMin/Max : real   // limity suwaka jasności
+//    saturationMin/Max : real   // limity suwaka nasycenia
 //
 //  Signals
 //    imageLoaded()
 //
 //  Invokables
 //    applyChanges(hue, brightness, saturation, flipped, filterIndex)
+//      — wołane automatycznie z debounce 500 ms po zmianie suwaka/filtra/
+//        odbicia (patrz autoApplyTimer poniżej); przycisk "Zastosuj" tylko
+//        pomija to opóźnienie.
 //    revertChanges()
+//      — czyści korekty i filtr do zera (nie do ostatnio zatwierdzonych
+//        wartości).
 //    setAsWallpaper()
 //    addToPlaylist()
 
@@ -53,6 +60,31 @@ Item {
         previewSaturation = DetailViewModel.saturation;
         previewFlipped = DetailViewModel.flipped;
         previewFilterIndex = DetailViewModel.activeFilterIndex;
+    }
+
+    // ── Auto-zastosuj ─────────────────────────────────────────────────────
+    // Po każdej zmianie suwaka/filtra/odbicia nie trzeba już klikać
+    // "Zastosuj" — applyChanges() woła się sama po 100 ms bezczynności.
+    // Debounce (a nie wywołanie przy każdym pikselu przeciągania) chroni
+    // przed zalewaniem TimelineViewModel::updateItem() dziesiątkami wywołań
+    // podczas jednego przeciągnięcia suwaka.
+    Timer {
+        id: autoApplyTimer
+        interval: 100
+        repeat: false
+        onTriggered: DetailViewModel.applyChanges(
+            previewHue, previewBrightness, previewSaturation,
+            previewFlipped, previewFilterIndex)
+    }
+
+    // Natychmiastowe zatwierdzenie z pominięciem odczekiwania — używane
+    // tam, gdzie VM musi mieć aktualny stan już teraz (np. przed dodaniem
+    // do playlisty), a nie dopiero za 500 ms.
+    function flushPendingApply() {
+        autoApplyTimer.stop();
+        DetailViewModel.applyChanges(
+            previewHue, previewBrightness, previewSaturation,
+            previewFlipped, previewFilterIndex);
     }
 
     Connections {
@@ -317,7 +349,10 @@ Item {
                         from: -1.0
                         to: 1.0
                         value: previewHue
-                        onMoved: previewHue = value
+                        onMoved: {
+                            previewHue = value;
+                            autoApplyTimer.restart();
+                        }
                     }
                     Label {
                         text: (previewHue > 0 ? "+" : "") + Math.round(previewHue * 180) + "°"
@@ -341,10 +376,13 @@ Item {
                     }
                     Slider {
                         Layout.fillWidth: true
-                        from: -1.0
-                        to: 1.0
+                        from: DetailViewModel.brightnessMin
+                        to: DetailViewModel.brightnessMax
                         value: previewBrightness
-                        onMoved: previewBrightness = value
+                        onMoved: {
+                            previewBrightness = value;
+                            autoApplyTimer.restart();
+                        }
                     }
                     Label {
                         text: (previewBrightness > 0 ? "+" : "") + Math.round(previewBrightness * 100) + "%"
@@ -368,10 +406,13 @@ Item {
                     }
                     Slider {
                         Layout.fillWidth: true
-                        from: -1.0
-                        to: 1.0
+                        from: DetailViewModel.saturationMin
+                        to: DetailViewModel.saturationMax
                         value: previewSaturation
-                        onMoved: previewSaturation = value
+                        onMoved: {
+                            previewSaturation = value;
+                            autoApplyTimer.restart();
+                        }
                     }
                     Label {
                         text: (previewSaturation > 0 ? "+" : "") + Math.round(previewSaturation * 100) + "%"
@@ -391,7 +432,10 @@ Item {
                 text: qsTr("Odwróć poziomo")
                 font.pointSize: 9
                 checked: previewFlipped
-                onToggled: previewFlipped = checked
+                onToggled: {
+                    previewFlipped = checked;
+                    autoApplyTimer.restart();
+                }
             }
 
             Kirigami.Separator {
@@ -502,7 +546,10 @@ Item {
 
                         highlighted: previewFilterIndex === index
                         text: model.name || qsTr("Filtr")
-                        onClicked: previewFilterIndex = previewFilterIndex === index ? -1 : index
+                        onClicked: {
+                            previewFilterIndex = previewFilterIndex === index ? -1 : index;
+                            autoApplyTimer.restart();
+                        }
                     }
                 }
             }
@@ -528,22 +575,15 @@ Item {
                 rowSpacing: 6
 
                 Button {
-                    Layout.fillWidth: true
-                    text: qsTr("Zastosuj")
-                    highlighted: true
-                    icon.name: "dialog-ok-apply-symbolic"
-                    onClicked: DetailViewModel.applyChanges(previewHue, previewBrightness, previewSaturation, previewFlipped, previewFilterIndex)
-                    ToolTip.text: qsTr("Zatwierdź korekty")
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 600
-                }
-
-                Button {
+                    Layout.columnSpan: 2
                     Layout.fillWidth: true
                     text: qsTr("Przywróć")
                     icon.name: "edit-undo-symbolic"
-                    onClicked: DetailViewModel.revertChanges()
-                    ToolTip.text: qsTr("Cofnij do ostatnio zatwierdzonych wartości")
+                    onClicked: {
+                        autoApplyTimer.stop();
+                        DetailViewModel.revertChanges();
+                    }
+                    ToolTip.text: qsTr("Wyczyść korekty i usuń filtr")
                     ToolTip.visible: hovered
                     ToolTip.delay: 600
                 }
@@ -553,7 +593,10 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Ustaw jako tapetę")
                     icon.name: "preferences-desktop-wallpaper-symbolic"
-                    onClicked: DetailViewModel.setAsWallpaper()
+                    onClicked: {
+                        detailRoot.flushPendingApply();
+                        DetailViewModel.setAsWallpaper();
+                    }
                 }
 
                 Button {
@@ -561,7 +604,10 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Dodaj do playlisty")
                     icon.name: "media-playlist-append-symbolic"
-                    onClicked: DetailViewModel.addToPlaylist()
+                    onClicked: {
+                        detailRoot.flushPendingApply();
+                        DetailViewModel.addToPlaylist();
+                    }
                 }
             }
         }

@@ -12,6 +12,7 @@ GalleryViewModel::GalleryViewModel(QObject* parent)
         m_allItems = m_scanWatcher.result();
         m_loadedCount = 0;
         setIsLoading(false);
+        emit hasMoreImagesChanged();
         loadNextBatch();
     });
 }
@@ -26,8 +27,10 @@ void GalleryViewModel::loadFolder(const QUrl& folderUrl)
 
     m_currentFolder = path;
     m_model->clear();
-    /// m_detail->clear(); /// fixxx
     m_allItems.clear();
+
+    // 2. DODAJ EMISJĘ: dane wyczyszczone, nie ma więcej obrazów
+    emit hasMoreImagesChanged();
 
     resetSelectedIndex();
     setErrorMessage("");
@@ -53,6 +56,8 @@ void GalleryViewModel::loadNextBatch()
     m_model->appendImages(batch);
     m_loadedCount += batch.count();
     setImageCount(m_loadedCount);
+
+    emit hasMoreImagesChanged();
 
     setIsLoading(false);
 }
