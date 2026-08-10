@@ -58,10 +58,12 @@ void DetailViewModel::setImage(const QString& url, const QString& name)
 
 void DetailViewModel::applyChanges(qreal hue, qreal brightness, qreal saturation, bool flipped, int filterIndex)
 {
-    // Jasność ograniczona do -50%…+50%, nasycenie do -90%…+90% — niezależnie
-    // od tego, skąd trafiła tu wartość (suwak w DetailView.qml jest już
-    // ograniczony do tego zakresu, ale clamp tutaj jest ostatnią linią
-    // obrony, np. gdy dane pochodzą ze starszego elementu kolejki).
+    // Barwa ograniczona do -180°…+180° (znormalizowane -1.0…+1.0), jasność
+    // do -50%…+50%, nasycenie do -90%…+90% — niezależnie od tego, skąd
+    // trafiła tu wartość (suwaki w DetailView.qml są już ograniczone do
+    // tego zakresu, ale clamp tutaj jest ostatnią linią obrony, np. gdy
+    // dane pochodzą ze starszego elementu kolejki).
+    hue = clampHue(hue);
     brightness = clampBrightness(brightness);
     saturation = clampSaturation(saturation);
 
@@ -176,7 +178,7 @@ void DetailViewModel::loadForEditing(
         }
     }
 
-    m_current = ColorState { hue, clampBrightness(brightness), clampSaturation(saturation), flipped, filterIndex };
+    m_current = ColorState { clampHue(hue), clampBrightness(brightness), clampSaturation(saturation), flipped, filterIndex };
 
     if (urlChanged)
         emit imageUrlChanged();

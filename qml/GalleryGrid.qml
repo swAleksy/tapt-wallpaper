@@ -24,7 +24,8 @@ Item {
             contentItem: Rectangle {
                 implicitWidth: 6
                 radius: 3
-                color: Qt.rgba(1, 1, 1, 0.4)
+                color: Kirigami.Theme.disabledTextColor
+                opacity: 0.6
             }
             background: Item {}
         }

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtCore
 import org.kde.kirigami as Kirigami
 import org.kde.taptwallpaper
 
@@ -8,11 +9,14 @@ Item {
     id: rootTimeline
     anchors.fill: parent
 
-    implicitHeight: 140
-    Layout.minimumHeight: 140
+    readonly property int toolbarHeight: 40
+    readonly property int contentMinHeight: 92
+    implicitHeight: toolbarHeight + contentMinHeight
+    Layout.minimumHeight: implicitHeight
 
-    // Trzyma wybrany tryb z ComboBoxa: 0 = Random, 1 = Time of the day
-    property int currentMode: 0
+    // Tryb (ComboBox w Configure) i ustawienia poszczególnych trybów żyją
+    // teraz w TimelineViewModel (C++). To jedyne miejsce, które zna cały stan potrzebny
+    // do zapisu playlisty (TimelineViewModel::exportPlaylist());
 
     readonly property int playlistCount: repeaterTimeline.count
 
@@ -24,7 +28,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 40
+        height: rootTimeline.toolbarHeight
         spacing: 8
 
         Item { width: 4 }
@@ -33,6 +37,13 @@ Item {
             text: qsTr("Configure")
             icon.name: "settings-configure"
             onClicked: configPopup.open()
+        }
+
+        Button {
+            text: qsTr("Clear playlist")
+            icon.name: "edit-clear-all"
+            enabled: rootTimeline.playlistCount > 0
+            onClicked: clearPlaylistDialog.open()
         }
 
         Item { Layout.fillWidth: true }
@@ -45,6 +56,14 @@ Item {
             text: qsTr("Save playlist")
             highlighted: true
             icon.name: "document-save"
+            onClicked: {
+                // TODO: dopasuj tę ścieżkę do lokalizacji, którą będzie
+                // obserwował customowy serwis (QFileSystemWatcher / inotify)
+                // — na razie to tylko sensowny domyślny placeholder.
+                const path = StandardPaths.writableLocation(StandardPaths.AppDataLocation) + "/playlist.json"
+                if (!TimelineViewModel.exportPlaylist(path))
+                    console.warn("Nie udało się zapisać playlisty:", path)
+            }
         }
 
         Item { width: 4 }
@@ -83,9 +102,14 @@ Item {
                 ComboBox {
                     id: modeCombo
                     Layout.fillWidth: true
-                    model: [qsTr("Random"), qsTr("Time of the day")]
-                    currentIndex: rootTimeline.currentMode
-                    onActivated: rootTimeline.currentMode = currentIndex
+                    model: [
+                        qsTr("Time of the day"),
+                        qsTr("When logging in"),
+                        qsTr("On a timer"),
+                        qsTr("Day of week")
+                    ]
+                    currentIndex: TimelineViewModel.currentMode
+                    onActivated: TimelineViewModel.currentMode = currentIndex
                 }
             }
 
@@ -97,18 +121,93 @@ Item {
                 currentIndex: modeCombo.currentIndex
 
                 ColumnLayout {
-                    Label { text: qsTr("Random settings...") }
-                    CheckBox { text: qsTr("Include previously used") }
-                    Item { Layout.fillHeight: true }
-                }
-
-                ColumnLayout {
                     Label { text: qsTr("Time of the day settings...") }
                     CheckBox { text: qsTr("Blend transitions smoothly") }
                     Item { Layout.fillHeight: true }
                 }
+
+                ColumnLayout {
+                    Label { text: qsTr("When logging in settings...") }
+                    RowLayout {
+                        Label { text: qsTr("Order:") }
+                        RadioButton {
+                            text: qsTr("Random")
+                            checked: TimelineViewModel.loginOrderMode === 0
+                            onToggled: if (checked) TimelineViewModel.loginOrderMode = 0
+                        }
+                        RadioButton {
+                            text: qsTr("Ordered")
+                            checked: TimelineViewModel.loginOrderMode === 1
+                            onToggled: if (checked) TimelineViewModel.loginOrderMode = 1
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+
+                ColumnLayout {
+                    Label { text: qsTr("On a timer settings...") }
+                    RowLayout {
+                        Label { text: qsTr("Order:") }
+                        RadioButton {
+                            text: qsTr("Random")
+                            checked: TimelineViewModel.timerOrderMode === 0
+                            onToggled: if (checked) TimelineViewModel.timerOrderMode = 0
+                        }
+                        RadioButton {
+                            text: qsTr("Ordered")
+                            checked: TimelineViewModel.timerOrderMode === 1
+                            onToggled: if (checked) TimelineViewModel.timerOrderMode = 1
+                        }
+                    }
+                    RowLayout {
+                        Label { text: qsTr("Change every:") }
+                        SpinBox {
+                            id: timerIntervalSpin
+                            from: 1
+                            to: 999
+                            value: TimelineViewModel.timerIntervalValue
+                            onValueModified: TimelineViewModel.timerIntervalValue = value
+                        }
+                        ComboBox {
+                            id: timerUnitCombo
+                            model: [qsTr("Minutes"), qsTr("Hours")]
+                            currentIndex: TimelineViewModel.timerIntervalUnit
+                            onActivated: TimelineViewModel.timerIntervalUnit = currentIndex
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+
+                ColumnLayout {
+                    Label { text: qsTr("Day of week settings...") }
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("The week is split evenly among the images in the queue (up to 7 — one per day). Drag the handles on the track to adjust how many days each image gets.")
+                        wrapMode: Text.WordWrap
+                        opacity: 0.7
+                        font.pointSize: 9
+                    }
+                    Item { Layout.fillHeight: true }
+                }
             }
         }
+    }
+
+    Dialog {
+        id: clearPlaylistDialog
+        title: qsTr("Clear playlist?")
+        modal: true
+        anchors.centerIn: Overlay.overlay
+        standardButtons: Dialog.Yes | Dialog.No
+
+        Label {
+            width: 260
+            wrapMode: Text.WordWrap
+            text: qsTr("This removes all %1 wallpapers from the playlist. This can't be undone.")
+                .arg(rootTimeline.playlistCount)
+        }
+
+        onAccepted: TimelineViewModel.clearPlaylist()
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -119,134 +218,15 @@ Item {
         anchors.bottom: toolbar.top
         anchors.left: parent.left
         anchors.right: parent.right
-        currentIndex: rootTimeline.currentMode
+        currentIndex: TimelineViewModel.currentMode
 
         // --------------------------------------------------------------------
-        // TRYB 0: RANDOM (Prosta lista Drag & Drop)
-        // --------------------------------------------------------------------
-        ListView {
-            id: randomList
-            orientation: ListView.Horizontal
-            spacing: 8
-            // left/right margins handle horizontal spacing from the edges of the screen
-            leftMargin: 8
-            rightMargin: 8
-            clip: true
-
-            model: DelegateModel {
-                id: visualModel
-                model: TimelineViewModel.queueModel
-
-                delegate: DropArea {
-                    id: delegateRoot
-                    required property var model
-                    required property int index
-
-                    width: 120
-                    // Fix 1: Emulate top and bottom container padding
-                    height: randomList.height - 16
-                    y: 8
-
-                    keys: ["randomItem"]
-                    onEntered: (drag) => {
-                        visualModel.items.move(drag.source.visualIndex, delegateRoot.DelegateModel.itemsIndex)
-                    }
-
-                    property int visualIndex: DelegateModel.itemsIndex
-
-                    Rectangle {
-                        id: itemRect
-                        anchors.fill: parent
-                        color: Kirigami.Theme.alternateBackgroundColor
-                        border.color: dragArea.drag.active ? Kirigami.Theme.highlightColor : Qt.rgba(1,1,1,0.1)
-                        border.width: dragArea.drag.active ? 2 : 1
-                        radius: 6
-                        clip: true
-
-                        Drag.active: dragArea.drag.active
-                        Drag.source: delegateRoot
-                        Drag.keys: ["randomItem"]
-                        Drag.hotSpot.x: width / 2
-                        Drag.hotSpot.y: height / 2
-
-                        states: [
-                            State {
-                                when: itemRect.Drag.active
-                                ParentChange { target: itemRect; parent: randomList }
-                                PropertyChanges {
-                                    target: itemRect
-                                    opacity: 0.8
-                                    anchors.fill: undefined
-                                    width: delegateRoot.width
-                                    height: delegateRoot.height
-                                }
-                            }
-                        ]
-
-                        PreviewImage {
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-
-                            // Fix 2: Keep image inside the border bounds so they don't overlap
-                            anchors.topMargin: itemRect.border.width
-                            anchors.leftMargin: itemRect.border.width
-                            anchors.rightMargin: itemRect.border.width
-                            height: (parent.height * 0.7) - itemRect.border.width
-
-                            source: model.sourcePath
-                            fillMode: Image.PreserveAspectCrop
-
-                            hue: delegateRoot.model.hue
-                            brightness: delegateRoot.model.brightness
-                            saturation: delegateRoot.model.saturation
-                            flipped: delegateRoot.model.flipped
-                            lutPath: delegateRoot.model.lutPath
-
-                            sourceSize: Qt.size(width, height)
-                        }
-
-                        Label {
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-
-                            // Fix 2 (cont): Keep label inside the border bounds
-                            anchors.bottomMargin: itemRect.border.width
-                            anchors.leftMargin: itemRect.border.width
-                            anchors.rightMargin: itemRect.border.width
-                            height: (parent.height * 0.3) - itemRect.border.width
-
-                            text: model.name || qsTr("Unknown")
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                            font.pointSize: 9
-                        }
-
-                        MouseArea {
-                            id: dragArea
-                            anchors.fill: parent
-                            drag.target: parent
-                            cursorShape: Qt.OpenHandCursor
-                            onPressed: cursorShape = Qt.ClosedHandCursor
-                            onReleased: cursorShape = Qt.OpenHandCursor
-                            onClicked: TimelineViewModel.editItem(delegateRoot.model.id)
-                        }
-                    }
-                }
-            }
-        }
-
-        // --------------------------------------------------------------------
-        // TRYB 1: TIME OF THE DAY (Skalowalna oś czasu 24h)
+        // TRYB 0: TIME OF THE DAY (Skalowalna oś czasu 24h)
         // --------------------------------------------------------------------
         Item {
             id: timeContainer
             clip: true
 
-            // Wymuszenie minimalnej wysokości w StackLayout/SplitView:
-            // 20px (nagłówek godzin) + 40px (minimalna ścieżka kafelków) + 8px marginesów = 68px min.
             Layout.fillWidth: true
             Layout.fillHeight: true
             implicitHeight: 68
@@ -271,6 +251,7 @@ Item {
                     newSlots.push({ startMin: start, endMin: end });
                 }
                 slots = newSlots;
+                applySlots();
             }
 
             function moveDivider(i, newMin) {
@@ -286,21 +267,23 @@ Item {
                 updated[i] = { startMin: left.startMin, endMin: clamped };
                 updated[i + 1] = { startMin: clamped, endMin: right.endMin };
                 slots = updated;
+                applySlots();
             }
 
-            function exportTimeSlots() {
-                const result = [];
+            // Zapisuje scheduleStartMin/EndMin w QueueModel po każdej zmianie `slots` (distribute, moveDivider, moveItem),
+            // czyniąc go źródłem prawdy dla eksportu JSON. Zastępuje martwe exportTimeSlots().
+
+            function applySlots() {
+                const model = TimelineViewModel.queueModel;
                 for (let i = 0; i < repeaterTimeline.count; ++i) {
-                    const item = repeaterTimeline.itemAt(i);
-                    if (!item) continue;
-                    result.push({
-                        id: item.model.id,
-                        name: item.model.name,
-                        startMin: item.startMin,
-                        endMin: item.endMin
-                    });
+                    const id = model.idAt(i);
+                    if (!id) continue;
+
+                    if (i < slots.length)
+                        model.setTimeSlot(id, slots[i].startMin, slots[i].endMin);
+                    else
+                        model.setTimeSlot(id, -1, -1);
                 }
-                return result;
             }
 
             Component.onCompleted: evenlyDistribute()
@@ -311,7 +294,8 @@ Item {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: 20
+
+                height: Math.min(20, timeContainer.height * 0.4)
 
                 Row {
                     anchors.fill: parent
@@ -369,9 +353,12 @@ Item {
                         required property var model
                         required property int index
 
-                        readonly property int startMin: timeContainer.slots.length > index
+                        // Guard przed index === -1 przy niszczeniu delegata (po usunięciu elementu).
+                        // Zapobiega TypeError przy próbie odczytu slots[-1].
+
+                        readonly property int startMin: (index >= 0 && timeContainer.slots.length > index)
                             ? timeContainer.slots[index].startMin : 0
-                        readonly property int endMin: timeContainer.slots.length > index
+                        readonly property int endMin: (index >= 0 && timeContainer.slots.length > index)
                             ? timeContainer.slots[index].endMin : 0
 
                         y: 0
@@ -381,8 +368,14 @@ Item {
 
                         keys: ["timelineItem"]
                         onEntered: (drag) => {
-                            if (drag.source && drag.source.index !== delegateRoot.index)
+                            if (drag.source && drag.source.index !== delegateRoot.index) {
                                 TimelineViewModel.moveItem(drag.source.index, delegateRoot.index)
+
+                                // beginMoveRows nie zmienia `count`, więc `onCountChanged` się nie odpali.
+                                // Wołamy applySlots() wprost, by zaktualizować granice w modelu po przeciągnięciu bez ich resetowania.
+
+                                timeContainer.applySlots()
+                            }
                         }
 
                         Rectangle {
@@ -454,6 +447,39 @@ Item {
                                 cursorShape: dragArea.drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
                                 onClicked: TimelineViewModel.editItem(model.id)
                             }
+
+                            HoverHandler {
+                                id: hoverHandler
+                            }
+
+                            Rectangle {
+                                id: deleteButton
+                                width: 18
+                                height: 18
+                                radius: 9
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                z: 10
+                                color: deleteArea.containsMouse ? "#e74c3c" : Qt.rgba(0, 0, 0, 0.6)
+                                visible: hoverHandler.hovered && !dragArea.drag.active
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: "✕"
+                                    color: "white"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                }
+
+                                MouseArea {
+                                    id: deleteArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: TimelineViewModel.removeItem(model.id)
+                                }
+                            }
                         }
                     }
                 }
@@ -475,7 +501,8 @@ Item {
                         radius: 2
                         color: dividerArea.containsMouse || dividerArea.pressed
                             ? Kirigami.Theme.highlightColor
-                            : Qt.rgba(1,1,1,0.25)
+                            : Kirigami.Theme.disabledTextColor
+                        opacity: dividerArea.containsMouse || dividerArea.pressed ? 1.0 : 0.5
 
                         MouseArea {
                             id: dividerArea
@@ -504,6 +531,28 @@ Item {
                     }
                 }
             }
+        }
+
+        // --------------------------------------------------------------------
+        // TRYB 1: WHEN LOGGING IN (prosta lista Drag & Drop — kolejność
+        // losowa/uporządkowana wybierana jest w popupie Configure)
+        // --------------------------------------------------------------------
+        SimpleQueueList {
+            id: loginQueueList
+        }
+
+        // --------------------------------------------------------------------
+        // TRYB 2: ON A TIMER (jw. — interwał i kolejność ustawiane w popupie)
+        // --------------------------------------------------------------------
+        SimpleQueueList {
+            id: timerQueueList
+        }
+
+        // --------------------------------------------------------------------
+        // TRYB 3: DAY OF WEEK (7 stałych slotów Pon..Nd)
+        // --------------------------------------------------------------------
+        DayOfWeekTrack {
+            id: dayOfWeekTrack
         }
     }
 }

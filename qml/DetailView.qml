@@ -10,12 +10,13 @@ import org.kde.taptwallpaper
 //    hasImage          : bool
 //    imageUrl          : url
 //    imageName         : string
-//    hue               : real   // −1.0 … +1.0
+//    hue               : real   // hueMin … hueMax (−1.0 … +1.0)
 //    brightness        : real   // brightnessMin … brightnessMax (−0.5 … +0.5)
 //    saturation        : real   // saturationMin … saturationMax (−0.9 … +0.9)
 //    flipped           : bool
 //    activeFilterIndex : int    // −1 = brak
 //    filtersModel      : model  // role: name (string)
+//    hueMin/Max        : real   // limity suwaka barwy
 //    brightnessMin/Max : real   // limity suwaka jasności
 //    saturationMin/Max : real   // limity suwaka nasycenia
 //
@@ -79,7 +80,7 @@ Item {
 
     // Natychmiastowe zatwierdzenie z pominięciem odczekiwania — używane
     // tam, gdzie VM musi mieć aktualny stan już teraz (np. przed dodaniem
-    // do playlisty), a nie dopiero za 500 ms.
+    // do playlisty), a nie dopiero za 100 ms.
     function flushPendingApply() {
         autoApplyTimer.stop();
         DetailViewModel.applyChanges(
@@ -346,8 +347,8 @@ Item {
                     }
                     Slider {
                         Layout.fillWidth: true
-                        from: -1.0
-                        to: 1.0
+                        from: DetailViewModel.hueMin
+                        to: DetailViewModel.hueMax
                         value: previewHue
                         onMoved: {
                             previewHue = value;
@@ -604,10 +605,21 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Add to playlist")
                     icon.name: "media-playlist-append-symbolic"
+
+                    readonly property bool dayOfWeekFull:
+                        TimelineViewModel.currentMode === 3
+                        && TimelineViewModel.queueModel.count >= TimelineViewModel.maxDayOfWeekItems
+
+                    enabled: !dayOfWeekFull
                     onClicked: {
                         detailRoot.flushPendingApply();
                         DetailViewModel.addToPlaylist();
                     }
+
+                    ToolTip.text: qsTr("Day of week only supports up to %1 wallpapers (one per day). Remove one or switch mode first.")
+                        .arg(TimelineViewModel.maxDayOfWeekItems)
+                    ToolTip.visible: dayOfWeekFull && hovered
+                    ToolTip.delay: 600
                 }
             }
         }

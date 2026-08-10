@@ -34,6 +34,9 @@ qt_add_qml_module(tapt-wallpaper
     QML_FILES qml/DetailView.qml
     QML_FILES qml/TimelinePanel.qml
     QML_FILES qml/PreviewImage.qml
+    QML_FILES qml/DayOfWeekTrack.qml
+    QML_FILES qml/SimpleQueueList.qml
+
 
     SOURCES
         src/models/imageItem.h

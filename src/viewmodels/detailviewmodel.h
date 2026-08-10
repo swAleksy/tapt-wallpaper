@@ -27,14 +27,15 @@ class DetailViewModel : public QObject
     // Model filtrów/LUT — role: name (QString), previewUrl (QUrl), lutPath (QString)
     Q_PROPERTY(LutFiltersListModel* lutFiltersListModel READ lutFiltersListModel CONSTANT)
 
-    // Limity suwaków jasności/nasycenia — jedno źródło prawdy zarówno dla
-    // QML (Slider.from/to), jak i dla clampowania w applyChanges()/
-    // loadForEditing(), żeby granice nigdy nie rozjechały się między UI
-    // a walidacją w C++.
+    // Limity suwaków barwy/jasności/nasycenia — jedno źródło prawdy zarówno
+    // dla QML, jak i dla clampowania w applyChanges()/ loadForEditing().
+
     Q_PROPERTY(qreal brightnessMin READ brightnessMin CONSTANT)
     Q_PROPERTY(qreal brightnessMax READ brightnessMax CONSTANT)
     Q_PROPERTY(qreal saturationMin READ saturationMin CONSTANT)
     Q_PROPERTY(qreal saturationMax READ saturationMax CONSTANT)
+    Q_PROPERTY(qreal hueMin        READ hueMin        CONSTANT)
+    Q_PROPERTY(qreal hueMax        READ hueMax        CONSTANT)
 
 public:
     explicit DetailViewModel(QObject *parent = nullptr);
@@ -44,11 +45,14 @@ public:
             return new DetailViewModel();
     }
 
-    // Jasność: -50% … +50%, Nasycenie: -90% … +90%.
+    // Jasność: -50% … +50%, Nasycenie: -90% … +90%, Barwa: -180° … +180°
+    // (znormalizowane do -1.0 … +1.0, tak jak oczekuje shader).
     static constexpr qreal kBrightnessMin = -0.5;
     static constexpr qreal kBrightnessMax = 0.5;
     static constexpr qreal kSaturationMin = -0.9;
     static constexpr qreal kSaturationMax = 0.9;
+    static constexpr qreal kHueMin = -1.0;
+    static constexpr qreal kHueMax = 1.0;
 
     QString imageUrl()          const { return m_imageUrl; }
     QString imageName()         const { return m_imageName; }
@@ -64,6 +68,8 @@ public:
     qreal   brightnessMax()     const { return kBrightnessMax; }
     qreal   saturationMin()     const { return kSaturationMin; }
     qreal   saturationMax()     const { return kSaturationMax; }
+    qreal   hueMin()            const { return kHueMin; }
+    qreal   hueMax()            const { return kHueMax; }
 
 
     Q_INVOKABLE void setImage(const QString &url, const QString &name);
@@ -81,15 +87,11 @@ public:
         qreal saturation, bool flipped,
         const QString &lutPath
     );
-    // ustawia m_originalImagePath = sourcePath, m_current = {hue, brightness, ...},
-    // zapamiętuje m_editingPlaylistItemId = playlistItemId, emituje imageLoaded()
 
-    // Wywoływane z warstwy wyżej (Main.qml) zaraz po tym, jak
-    // TimelineViewModel::addItem() zwróci id dla elementu utworzonego przez
-    // addToPlaylist(). Dzięki temu kolejne automatyczne applyChanges()
-    // (debounce w DetailView.qml) trafiają już do właściwego elementu
-    // kolejki i podgląd na osi czasu aktualizuje się na żywo — bez
-    // konieczności ponownego wejścia w "Edytuj" z timeline'u.
+    // Ustawia stan obrazu, zapisuje m_editingPlaylistItemId i emituje imageLoaded().
+    // Wywoływane z Main.qml zaraz po addItem(), aby automatyczne applyChanges()
+    // od razu aktualizowało właściwy podgląd na osi czasu na żywo.
+
     Q_INVOKABLE void setEditingItemId(const QString &id);
 
     signals:
@@ -115,11 +117,8 @@ public:
         	bool flipped,
         	const QString &lutPath);
 
-        // Emitowany z applyChanges() i revertChanges(), gdy edytujemy element
-        // JUŻ obecny w kolejce (czyli po loadForEditing() lub po
-        // addToPlaylist() + setEditingItemId()). Łącz w warstwie wyżej z
-        // TimelineViewModel::updateItem(id, ...), żeby PreviewImage w
-        // TimelinePanel dostał nowe wartości na żywo.
+        // Emitowany z applyChanges()/revertChanges() przy edycji istniejącego elementu.
+        // Łącz z TimelineViewModel::updateItem(), aby odświeżać PreviewImage w TimelinePanel na żywo.
         void itemEditApplied(
             const QString &id,
             qreal hue,
@@ -133,6 +132,7 @@ private:
 
     static qreal clampBrightness(qreal v) { return std::clamp(v, kBrightnessMin, kBrightnessMax); }
     static qreal clampSaturation(qreal v) { return std::clamp(v, kSaturationMin, kSaturationMax); }
+    static qreal clampHue(qreal v)        { return std::clamp(v, kHueMin, kHueMax); }
 
     LutFiltersListModel *m_lutFiltersListModel;
 

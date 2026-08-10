@@ -37,9 +37,6 @@ Kirigami.ApplicationWindow {
         target: DetailViewModel
         function onImageAdded(sourcePath, name, hue, brightness, saturation, flipped, lutPath) {
             const id = TimelineViewModel.addItem(sourcePath, name, hue, brightness, saturation, flipped, lutPath);
-            // Bez tego kolejne automatyczne applyChanges() (debounce w
-            // DetailView.qml) nie wiedziałyby, do którego elementu kolejki
-            // odesłać zmiany na żywo — patrz DetailViewModel::setEditingItemId.
             DetailViewModel.setEditingItemId(id);
         }
     }
@@ -79,15 +76,17 @@ Kirigami.ApplicationWindow {
 
         Rectangle {
             id: timeline
-            // Panel osi czasu ma sens dopiero, gdy w playliście jest
-            // przynajmniej jedna tapeta — timelinePanel.playlistCount to
-            // property wystawiona z roota TimelinePanel.qml (reaktywnie
-            // śledzi TimelineViewModel.queueModel).
+            // timelinePanel.playlistCount to
+            // property wystawiona z roota TimelinePanel.qml
+            // reaktywnie śledzi TimelineViewModel.queueModel.
             visible: timelinePanel.playlistCount > 0
 
-            // Ustawiamy bezpieczne wartości: min 140px (40px toolbar + 100px na listę)
+            // Minimalna wysokość pochodzi teraz bezpośrednio z TimelinePanel
+            // (rootTimeline.implicitHeight = toolbar + minimalna treść), więc
+            // SplitView nigdy nie ściśnie panelu poniżej tego, czego faktycznie
+            //
             SplitView.preferredHeight: Math.round(root.height * 0.20)
-            SplitView.minimumHeight: 140
+            SplitView.minimumHeight: timelinePanel.implicitHeight
             SplitView.maximumHeight: Math.round(root.height * 0.45)
             color: Kirigami.Theme.backgroundColor
 
