@@ -607,7 +607,7 @@ Item {
                     icon.name: "media-playlist-append-symbolic"
 
                     readonly property bool dayOfWeekFull:
-                        TimelineViewModel.currentMode === 3
+                        TimelineViewModel.currentMode === PlaylistEnums.Mode.DayOfWeek
                         && TimelineViewModel.queueModel.count >= TimelineViewModel.maxDayOfWeekItems
 
                     enabled: !dayOfWeekFull

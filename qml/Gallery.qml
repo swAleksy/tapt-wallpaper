@@ -32,6 +32,8 @@ Item {
                 onClicked: folderDialog.open()
             }
 
+            MonitorPicker { }
+
             Label {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight

@@ -4,24 +4,6 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.taptwallpaper
 
-// DayOfWeekTrack
-// ─────────────────────────────────────────────────────────────────────────
-// Widok dla trybu "Day of week": ta sama mechanika co "Time of the day"
-// (timeContainer w TimelinePanel.qml), tylko oś to nie 1440 minut tylko
-// 7 jednostek-dni (Pon..Nd), a granice między kafelkami przeciąga się
-// z zaokrągleniem do PEŁNYCH dni (bez podziałów typu "pół dnia").
-//
-// 7 dni jest zawsze w całości "zajętych" — dzielone równo między
-// obrazy w kolejce (ta sama prosta formuła co evenlyDistribute() w Time of
-// the day, tylko total=7 zamiast total=1440),
-//
-// Maks. 7 obrazów — jeśli w kolejce jest więcej, nadwyżka nie jest tu
-// widoczna ani planowana (nadal istnieje w kolejce i jest dostępna w
-// pozostałych trybach).
-//
-// Wynikowy podział jest zapisywany w QueueModel jako weekdayMask (bit i =
-// dzień i) przez setWeekdayMask() — bez żadnego skomplikowanego
-
 Item {
     id: root
     clip: true
@@ -38,73 +20,9 @@ Item {
     ]
 
     property real pxPerDay: width / dayCount
-    property var slots: [] // [{startDay, endDay}, ...] w pełnych dniach (0..7)
-
-
     readonly property int scheduledCount: Math.min(repeaterDay.count, dayCount)
 
-    function evenlyDistribute() {
-        // Celowo NIE root.scheduledCount tutaj: to osobna właściwość, której
-        // powiązanie może jeszcze nie zdążyć się przeliczyć w momencie, gdy
-        // odpalany jest ten handler (onCountChanged) — dawało to "spóźnioną
-        // o jedno" wartość (0 przy dodaniu 1. obrazu, 1 przy dodaniu 2. itd.).
-        // repeaterDay.count jest tą samą właściwością, której zmiana
-        // wywołała ten handler, więc czytana bezpośrednio jest zawsze
-        // aktualna — tak samo jak w TimelinePanel::evenlyDistribute().
-        const count = Math.min(repeaterDay.count, root.dayCount);
-        if (count === 0) {
-            slots = [];
-            return;
-        }
-        const newSlots = [];
-        for (let i = 0; i < count; ++i) {
-            const start = Math.round(i * root.dayCount / count);
-            const end = (i === count - 1) ? root.dayCount : Math.round((i + 1) * root.dayCount / count);
-            newSlots.push({ startDay: start, endDay: end });
-        }
-        slots = newSlots;
-        applyMasks();
-    }
-
-    function moveDivider(i, newDay) {
-        const left = slots[i];
-        const right = slots[i + 1];
-        if (!left || !right) return;
-
-        let clamped = Math.round(newDay);
-        clamped = Math.max(left.startDay + 1, Math.min(clamped, right.endDay - 1));
-
-        const updated = slots.slice();
-        updated[i] = { startDay: left.startDay, endDay: clamped };
-        updated[i + 1] = { startDay: clamped, endDay: right.endDay };
-        slots = updated;
-        applyMasks();
-    }
-
-    // Zapisuje bieżący podział jako weekdayMask na każdym zaplanowanym
-    // obrazie (i czyści maskę na obrazach poza pierwszymi 7 pozycjami
-    function applyMasks() {
-        // Uwaga: id bierzemy bezpośrednio z modelu (QueueModel::idAt), a nie
-        // z repeaterDay.itemAt(i) — tuż po wstawieniu wiersza delegat może
-        // jeszcze nie istnieć, więc itemAt() potrafi chwilowo zwrócić null i
-        // gubić przypisanie maski dla świeżo dodanego obrazu.
-        const model = TimelineViewModel.queueModel;
-        for (let i = 0; i < repeaterDay.count; ++i) {
-            const id = model.idAt(i);
-            if (!id) continue;
-
-            if (i < slots.length) {
-                let mask = 0;
-                for (let d = slots[i].startDay; d < slots[i].endDay; ++d)
-                    mask |= (1 << d);
-                model.setWeekdayMask(id, mask);
-            } else {
-                model.setWeekdayMask(id, 0);
-            }
-        }
-    }
-
-    Component.onCompleted: evenlyDistribute()
+    Component.onCompleted: TimelineViewModel.distributeWeekdaysEvenly()
 
     // ── 1. Główka z etykietami dni tygodnia (stała, 7 równych kolumn) ───────
     Item {
@@ -158,11 +76,11 @@ Item {
             }
         }
 
-        // Kafelki — jeden na obraz, maks. 7 (reszta ukryta, patrz scheduledCount)
+        // Kafelki — jeden na obraz, maks. 7
         Repeater {
             id: repeaterDay
             model: TimelineViewModel.queueModel
-            onCountChanged: root.evenlyDistribute()
+            onCountChanged: TimelineViewModel.distributeWeekdaysEvenly()
 
             DropArea {
                 id: delegateRoot
@@ -171,14 +89,18 @@ Item {
 
                 visible: index >= 0 && index < root.scheduledCount
 
-                // index >= 0: tuż po usunięciu elementu z modelu delegat, który jest w trakcie
-                // niszczenia, na chwilę dostaje index === -1. Sam warunek
-                // "length > index" go nie łapie , a root.slots[-1] zwraca undefined
+                function getStartDay(mask) {
+                        if (!mask) return 0;
+                        let lo = 0; while (!(mask & (1 << lo))) ++lo; return lo;
+                    }
 
-                readonly property int startDay: (index >= 0 && root.slots.length > index)
-                    ? root.slots[index].startDay : 0
-                readonly property int endDay: (index >= 0 && root.slots.length > index)
-                    ? root.slots[index].endDay : 0
+                function getEndDay(mask) {
+                    if (!mask) return 0;
+                    let hi = 6; while (!(mask & (1 << hi))) --hi; return hi + 1;
+                }
+
+                readonly property int startDay: index >= 0 ? getStartDay(model.weekdayMask) : 0
+                readonly property int endDay: index >= 0 ? getEndDay(model.weekdayMask) : 0
 
                 y: 0
                 height: trackContent.height
@@ -190,12 +112,7 @@ Item {
                     if (drag.source && drag.source.index !== delegateRoot.index
                         && delegateRoot.index < root.scheduledCount) {
                         TimelineViewModel.moveItem(drag.source.index, delegateRoot.index)
-
-                        // Fix #3: beginMoveRows/endMoveRows nie zmienia count, więc
-                        // onCountChanged nie wywoła applyMasks(). Wywołujemy je bezpośrednio,
-                        // bez evenlyDistribute(), by zachować ręcznie przesunięte granice.
-
-                        root.applyMasks()
+                        TimelineViewModel.distributeWeekdaysEvenly() // <-- Forces layout refresh
                     }
                 }
 
@@ -269,7 +186,6 @@ Item {
                         onClicked: TimelineViewModel.editItem(model.id)
                     }
 
-                    // Hover przez HoverHandler, żeby nie kolidować z dragArea
                     HoverHandler {
                         id: hoverHandler
                     }
@@ -307,21 +223,28 @@ Item {
             }
         }
 
-        // Uchwyty granic między kafelkami — przeciąganie zaokrąglone do
-        // pełnych dni (bez podziałów ułamkowych, min. 1 dzień na kafelek).
+        // Uchwyty granic między kafelkami
         Repeater {
             id: dividerRepeater
-            model: Math.max(0, root.scheduledCount - 1)
+            model: TimelineViewModel.queueModel
 
             Rectangle {
                 id: divider
                 required property int index
+                required property var model
+
+                visible: index < root.scheduledCount - 1
 
                 width: 4
                 height: parent.height
-                x: (root.slots.length > index
-                    ? root.slots[index].endDay : 0) * root.pxPerDay - width / 2
+
+                // Bind to the reactive delegate
+                property var targetDelegate: repeaterDay.itemAt(index)
+                readonly property int endDay: targetDelegate ? targetDelegate.endDay : 0
+
+                x: endDay * root.pxPerDay - width / 2
                 z: 10
+
                 radius: 2
                 color: dividerArea.containsMouse || dividerArea.pressed
                     ? Kirigami.Theme.highlightColor
@@ -341,14 +264,15 @@ Item {
                     onPressed: (mouse) => {
                         var mapped = mapToItem(trackContent, mouse.x, mouse.y)
                         startDragX = mapped.x
-                        initialBoundary = root.slots[divider.index].endDay
+                        initialBoundary = divider.endDay // <-- Update this too
                     }
+
                     onPositionChanged: (mouse) => {
                         if (pressed) {
                             var mapped = mapToItem(trackContent, mouse.x, mouse.y)
                             var deltaPx = mapped.x - startDragX
-                            var deltaDay = Math.round(deltaPx / root.pxPerDay)
-                            root.moveDivider(divider.index, initialBoundary + deltaDay)
+                            var deltaDay = deltaPx / root.pxPerDay
+                            TimelineViewModel.moveWeekdayDivider(divider.index, initialBoundary + deltaDay)
                         }
                     }
                 }

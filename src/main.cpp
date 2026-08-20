@@ -13,6 +13,9 @@ int main(int argc, char *argv[])
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QApplication app(argc, argv);
 
+    app.setOrganizationName("KDE");
+    app.setApplicationName("taptwallpaper");
+
     QQmlApplicationEngine engine;
     engine.addImageProvider(QLatin1String("taptimage"), new TaptImageProvider());
     engine.addImageProvider(QStringLiteral("lut"), new LutImageProvider());

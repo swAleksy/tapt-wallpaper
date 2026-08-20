@@ -40,6 +40,8 @@ ListView {
         y: root.cardTopPadding
 
         keys: ["randomItem"]
+        // @param {DragEvent} drag - drag.source: DropArea (delegateRoot innego kafelka),
+        //   drag.source.index: int - jego aktualna pozycja w QueueModel
         onEntered: (drag) => {
             if (drag.source && drag.source.index !== delegateRoot.index)
                 TimelineViewModel.moveItem(drag.source.index, delegateRoot.index)

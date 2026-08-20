@@ -60,6 +60,20 @@ public:
     // Zdejmuje przypisanie dnia z konkretnego obrazu (bez wpływu na inne).
     Q_INVOKABLE void unassignDay(const QString& id, int day);
 
+    // Time of the day
+    Q_INVOKABLE void distributeTimeSlotsEvenly();
+    // proposedBoundaryMin is raw/un-snapped — this method owns snapping (5 min)
+    // and the minimum slot width (30 min).
+    Q_INVOKABLE void moveTimeSlotDivider(int dividerIndex, qreal proposedBoundaryMin);
+    Q_INVOKABLE int scheduleStartMinAt(int row) const;
+    Q_INVOKABLE int scheduleEndMinAt(int row) const;
+
+    // Day of week
+    Q_INVOKABLE void distributeWeekdaysEvenly();
+    Q_INVOKABLE void moveWeekdayDivider(int dividerIndex, qreal proposedBoundaryDay);
+    Q_INVOKABLE int scheduleStartDayAt(int row) const; // decoded from weekdayMask
+    Q_INVOKABLE int scheduleEndDayAt(int row) const;
+
 signals:
     void countChanged();
 

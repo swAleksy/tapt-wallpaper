@@ -1,50 +1,69 @@
 #ifndef TIMELINEVIEWMODEL_H
 #define TIMELINEVIEWMODEL_H
 
+#include "models/monitorplayliststate.h"
+#include "models/playlistenums.h"
 #include "models/queuemodel.h"
+#include <QMap>
 #include <QObject>
+#include <QString>
 #include <qqml.h>
 
 class TimelineViewModel : public QObject {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
-    Q_PROPERTY(QueueModel* queueModel READ queueModel CONSTANT)
 
-    // Stan eksportu trzymany w C++, aby nie ginął po zamknięciu widoku w QML.
-    // 0 = Time of the day, 1 = When logging in, 2 = On a timer, 3 = Day of week
-    Q_PROPERTY(int currentMode READ currentMode WRITE setCurrentMode NOTIFY currentModeChanged)
+    // Stabilny identyfikator aktualnie wybranego monitora (np. "eDP-1",
+    // "HDMI-A-1" — patrz QScreen::name() / Qt.application.screens w QML).
+    // Celowo NIE indeks: kolejność monitorów w systemie potrafi się zmienić
+    // między sesjami (odłączenie/podłączenie kabla, inna kolejność
+    // wykrycia), a mapowanie po indeksie mogłoby po restarcie przypisać
+    // playlistę do złego ekranu.
+    Q_PROPERTY(QString currentMonitorId READ currentMonitorId WRITE setCurrentMonitorId NOTIFY currentMonitorIdChanged)
 
-    // Ustawienia trybu "When logging in": 0 = Random, 1 = Ordered
-    Q_PROPERTY(int loginOrderMode READ loginOrderMode WRITE setLoginOrderMode NOTIFY loginOrderModeChanged)
+    // Promowane z lokalnych property w TimelinePanel.qml: to jedyne miejsce
+    // (C++), które zna cały stan potrzebny do eksportu playlisty — patrz
+    // exportPlaylist().
 
-    // Ustawienia trybu "On a timer"
-    Q_PROPERTY(int timerOrderMode READ timerOrderMode WRITE setTimerOrderMode NOTIFY timerOrderModeChanged) // 0 = Random, 1 = Ordered
+    Q_PROPERTY(QueueModel* queueModel READ queueModel NOTIFY currentMonitorIdChanged)
+
+    // Typy poniżej to PlaylistEnums (nie int) — patrz playlistenums.h.
+    // Wartości liczbowe pod spodem są bez zmian względem wersji
+    // jednomonitorowej (0/1/2/3 dla trybu, 0/1 dla order/interval), więc
+    // istniejący QML porównujący np. `currentMode === 3` nadal działa bez
+    // zmian — enum jest tu głównie po to, żeby C++ i JSON (patrz
+    // exportPlaylist()) nie posługiwały się gołymi liczbami.
+    Q_PROPERTY(PlaylistEnums::Mode currentMode READ currentMode WRITE setCurrentMode NOTIFY currentModeChanged)
+    Q_PROPERTY(PlaylistEnums::OrderMode loginOrderMode READ loginOrderMode WRITE setLoginOrderMode NOTIFY loginOrderModeChanged)
+    Q_PROPERTY(PlaylistEnums::OrderMode timerOrderMode READ timerOrderMode WRITE setTimerOrderMode NOTIFY timerOrderModeChanged)
     Q_PROPERTY(int timerIntervalValue READ timerIntervalValue WRITE setTimerIntervalValue NOTIFY timerIntervalValueChanged)
-    Q_PROPERTY(int timerIntervalUnit READ timerIntervalUnit WRITE setTimerIntervalUnit NOTIFY timerIntervalUnitChanged) // 0 = Minutes, 1 = Hours
-
-    // Limit elementów dla trybu "Day of week" (7), wystawiony bez zależności od widoków QML.
+    Q_PROPERTY(PlaylistEnums::IntervalUnit timerIntervalUnit READ timerIntervalUnit WRITE setTimerIntervalUnit NOTIFY timerIntervalUnitChanged)
     Q_PROPERTY(int maxDayOfWeekItems READ maxDayOfWeekItems CONSTANT)
 
 public:
     explicit TimelineViewModel(QObject *parent = nullptr);
 
-    QueueModel* queueModel() const { return m_model; }
+    QString currentMonitorId() const { return m_currentMonitorId; }
 
-    int currentMode() const { return m_currentMode; }
-    void setCurrentMode(int mode);
+    void setCurrentMonitorId(const QString& id);
 
-    int loginOrderMode() const { return m_loginOrderMode; }
-    void setLoginOrderMode(int mode);
+    QueueModel* queueModel() const;
 
-    int timerOrderMode() const { return m_timerOrderMode; }
-    void setTimerOrderMode(int mode);
+    PlaylistEnums::Mode currentMode() const;
+    void setCurrentMode(PlaylistEnums::Mode mode);
 
-    int timerIntervalValue() const { return m_timerIntervalValue; }
+    PlaylistEnums::OrderMode loginOrderMode() const;
+    void setLoginOrderMode(PlaylistEnums::OrderMode mode);
+
+    PlaylistEnums::OrderMode timerOrderMode() const;
+    void setTimerOrderMode(PlaylistEnums::OrderMode mode);
+
+    int timerIntervalValue() const;
     void setTimerIntervalValue(int value);
 
-    int timerIntervalUnit() const { return m_timerIntervalUnit; }
-    void setTimerIntervalUnit(int unit);
+    PlaylistEnums::IntervalUnit timerIntervalUnit() const;
+    void setTimerIntervalUnit(PlaylistEnums::IntervalUnit unit);
 
     static constexpr int kMaxDayOfWeekItems = 7;
     int maxDayOfWeekItems() const { return kMaxDayOfWeekItems; }
@@ -70,13 +89,19 @@ public:
     Q_INVOKABLE void removeItem(const QString& id);
     Q_INVOKABLE void editItem(const QString& id);
 
-    // Czyści całą kolejkę (potwierdzenie w QML).
+    Q_INVOKABLE void switchMode(int modeIndex);
+    // Usuwa całą playlistę AKTUALNIE WYBRANEGO monitora naraz (
     Q_INVOKABLE void clearPlaylist();
 
     Q_INVOKABLE void moveItem(int from, int to);
 
     // Atomowo zrzuca pełny stan i kolejkę do JSON pod `path` (bezpieczne dla plikowych watcherów).
     Q_INVOKABLE bool exportPlaylist(const QString& path) const;
+
+    Q_INVOKABLE void distributeTimeSlotsEvenly();
+    Q_INVOKABLE void moveTimeSlotDivider(int dividerIndex, qreal proposedBoundaryMin);
+    Q_INVOKABLE void distributeWeekdaysEvenly();
+    Q_INVOKABLE void moveWeekdayDivider(int dividerIndex, qreal proposedBoundaryDay);
 
 signals:
     void itemRequestedForEditing(
@@ -89,6 +114,7 @@ signals:
         bool flipped,
         const QString& lutPath);
 
+    void currentMonitorIdChanged();
     void currentModeChanged();
     void loginOrderModeChanged();
     void timerOrderModeChanged();
@@ -96,13 +122,17 @@ signals:
     void timerIntervalUnitChanged();
 
 private:
-    QueueModel* m_model;
+    void connectMonitorState(MonitorPlaylistState* state);
+    // Zwraca istniejący stan dla danego monitora albo tworzy nowy (pusta
+    // kolejka, domyślny tryb), jeśli to pierwsze odwołanie do tego ekranu.
+    MonitorPlaylistState* ensureMonitorState(const QString& id);
 
-    int m_currentMode = 0;
-    int m_loginOrderMode = 0;
-    int m_timerOrderMode = 0;
-    int m_timerIntervalValue = 30;
-    int m_timerIntervalUnit = 0;
+    // Stan monitora wskazywanego aktualnie przez m_currentMonitorId. Zawsze
+    // istnieje po konstrukcji (patrz ctor) i po każdym setCurrentMonitorId().
+    MonitorPlaylistState* currentState() const;
+
+    QString m_currentMonitorId;
+    QMap<QString, MonitorPlaylistState*> m_monitorStates;
 };
 
 #endif // TIMELINEVIEWMODEL_H

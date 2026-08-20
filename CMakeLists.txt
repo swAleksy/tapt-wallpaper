@@ -36,7 +36,7 @@ qt_add_qml_module(tapt-wallpaper
     QML_FILES qml/PreviewImage.qml
     QML_FILES qml/DayOfWeekTrack.qml
     QML_FILES qml/SimpleQueueList.qml
-
+    QML_FILES qml/MonitorPicker.qml
 
     SOURCES
         src/models/imageItem.h
@@ -44,7 +44,9 @@ qt_add_qml_module(tapt-wallpaper
         src/models/lutfilterslistmodel.h    src/models/lutfilterslistmodel.cpp
         src/models/editstate.h
         src/models/queueitem.h
+        src/models/monitorplayliststate.h
         src/models/queuemodel.h           src/models/queuemodel.cpp
+        src/models/playlistenums.h
         src/services/galleryservice.h       src/services/galleryservice.cpp
         src/services/asyncimageprovider.h
         src/services/lutimageprovider.h

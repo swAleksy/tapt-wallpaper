@@ -81,10 +81,6 @@ Kirigami.ApplicationWindow {
             // reaktywnie śledzi TimelineViewModel.queueModel.
             visible: timelinePanel.playlistCount > 0
 
-            // Minimalna wysokość pochodzi teraz bezpośrednio z TimelinePanel
-            // (rootTimeline.implicitHeight = toolbar + minimalna treść), więc
-            // SplitView nigdy nie ściśnie panelu poniżej tego, czego faktycznie
-            //
             SplitView.preferredHeight: Math.round(root.height * 0.20)
             SplitView.minimumHeight: timelinePanel.implicitHeight
             SplitView.maximumHeight: Math.round(root.height * 0.45)

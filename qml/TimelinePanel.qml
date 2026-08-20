@@ -14,14 +14,10 @@ Item {
     implicitHeight: toolbarHeight + contentMinHeight
     Layout.minimumHeight: implicitHeight
 
-    // Tryb (ComboBox w Configure) i ustawienia poszczególnych trybów żyją
-    // teraz w TimelineViewModel (C++). To jedyne miejsce, które zna cały stan potrzebny
-    // do zapisu playlisty (TimelineViewModel::exportPlaylist());
-
     readonly property int playlistCount: repeaterTimeline.count
 
     // ════════════════════════════════════════════════════════════════════════
-    //  DOLNY PASEK NARZĘDZIOWY (pod obszarem podglądu tapet)
+    //  DOLNY PASEK NARZĘDZIOWY
     // ════════════════════════════════════════════════════════════════════════
     RowLayout {
         id: toolbar
@@ -57,9 +53,6 @@ Item {
             highlighted: true
             icon.name: "document-save"
             onClicked: {
-                // TODO: dopasuj tę ścieżkę do lokalizacji, którą będzie
-                // obserwował customowy serwis (QFileSystemWatcher / inotify)
-                // — na razie to tylko sensowny domyślny placeholder.
                 const path = StandardPaths.writableLocation(StandardPaths.AppDataLocation) + "/playlist.json"
                 if (!TimelineViewModel.exportPlaylist(path))
                     console.warn("Nie udało się zapisać playlisty:", path)
@@ -74,8 +67,10 @@ Item {
     // ════════════════════════════════════════════════════════════════════════
     Popup {
         id: configPopup
-        y: toolbar.y - height - 8
-        x: 8
+        parent: toolbar
+        x: 0
+        y: -height - 8
+
         width: 320
         leftMargin: 12
         rightMargin: 12
@@ -108,9 +103,14 @@ Item {
                         qsTr("On a timer"),
                         qsTr("Day of week")
                     ]
+
                     currentIndex: TimelineViewModel.currentMode
-                    onActivated: TimelineViewModel.currentMode = currentIndex
+
+                    onActivated: (index) => {
+                        TimelineViewModel.switchMode(index);
+                    }
                 }
+
             }
 
             Kirigami.Separator { Layout.fillWidth: true }
@@ -221,7 +221,7 @@ Item {
         currentIndex: TimelineViewModel.currentMode
 
         // --------------------------------------------------------------------
-        // TRYB 0: TIME OF THE DAY (Skalowalna oś czasu 24h)
+        // TRYB 0: TIME OF THE DAY
         // --------------------------------------------------------------------
         Item {
             id: timeContainer
@@ -233,62 +233,10 @@ Item {
             Layout.minimumHeight: 68
 
             property real pxPerMin: width / 1440.0
-            property int minSlotMinutes: 30
-            property var slots: []
 
-            function snapTo5(val) { return Math.round(val / 5) * 5; }
+            Component.onCompleted: TimelineViewModel.distributeTimeSlotsEvenly()
 
-            function evenlyDistribute() {
-                const count = repeaterTimeline.count;
-                if (count === 0) {
-                    slots = [];
-                    return;
-                }
-                const newSlots = [];
-                for (let i = 0; i < count; ++i) {
-                    const start = Math.round(i * 1440 / count);
-                    const end = (i === count - 1) ? 1440 : Math.round((i + 1) * 1440 / count);
-                    newSlots.push({ startMin: start, endMin: end });
-                }
-                slots = newSlots;
-                applySlots();
-            }
-
-            function moveDivider(i, newMin) {
-                const left = slots[i];
-                const right = slots[i + 1];
-                if (!left || !right) return;
-
-                let clamped = snapTo5(newMin);
-                clamped = Math.max(left.startMin + minSlotMinutes,
-                                   Math.min(clamped, right.endMin - minSlotMinutes));
-
-                const updated = slots.slice();
-                updated[i] = { startMin: left.startMin, endMin: clamped };
-                updated[i + 1] = { startMin: clamped, endMin: right.endMin };
-                slots = updated;
-                applySlots();
-            }
-
-            // Zapisuje scheduleStartMin/EndMin w QueueModel po każdej zmianie `slots` (distribute, moveDivider, moveItem),
-            // czyniąc go źródłem prawdy dla eksportu JSON. Zastępuje martwe exportTimeSlots().
-
-            function applySlots() {
-                const model = TimelineViewModel.queueModel;
-                for (let i = 0; i < repeaterTimeline.count; ++i) {
-                    const id = model.idAt(i);
-                    if (!id) continue;
-
-                    if (i < slots.length)
-                        model.setTimeSlot(id, slots[i].startMin, slots[i].endMin);
-                    else
-                        model.setTimeSlot(id, -1, -1);
-                }
-            }
-
-            Component.onCompleted: evenlyDistribute()
-
-            // ── 1. Główka z etykietami godzin (Stała wysokość) ──────────────────
+            // ── 1. Główka z etykietami godzin ──────────────────────────────────
             Item {
                 id: labelsRow
                 anchors.top: parent.top
@@ -317,7 +265,7 @@ Item {
                 }
             }
 
-            // ── 2. Obszar kafelków i linii (Wypełnia resztę miejsca, min 40px) ───
+            // ── 2. Obszar kafelków i linii ─────────────────────────────────────
             Item {
                 id: trackContent
                 anchors.top: labelsRow.bottom
@@ -346,20 +294,15 @@ Item {
                 Repeater {
                     id: repeaterTimeline
                     model: TimelineViewModel.queueModel
-                    onCountChanged: timeContainer.evenlyDistribute()
+                    onCountChanged: TimelineViewModel.distributeTimeSlotsEvenly()
 
                     DropArea {
                         id: delegateRoot
                         required property var model
                         required property int index
 
-                        // Guard przed index === -1 przy niszczeniu delegata (po usunięciu elementu).
-                        // Zapobiega TypeError przy próbie odczytu slots[-1].
-
-                        readonly property int startMin: (index >= 0 && timeContainer.slots.length > index)
-                            ? timeContainer.slots[index].startMin : 0
-                        readonly property int endMin: (index >= 0 && timeContainer.slots.length > index)
-                            ? timeContainer.slots[index].endMin : 0
+                        readonly property int startMin: index >= 0 ? model.scheduleStartMin : 0
+                        readonly property int endMin: index >= 0 ? model.scheduleEndMin : 0
 
                         y: 0
                         height: trackContent.height
@@ -370,11 +313,7 @@ Item {
                         onEntered: (drag) => {
                             if (drag.source && drag.source.index !== delegateRoot.index) {
                                 TimelineViewModel.moveItem(drag.source.index, delegateRoot.index)
-
-                                // beginMoveRows nie zmienia `count`, więc `onCountChanged` się nie odpali.
-                                // Wołamy applySlots() wprost, by zaktualizować granice w modelu po przeciągnięciu bez ich resetowania.
-
-                                timeContainer.applySlots()
+                                TimelineViewModel.distributeTimeSlotsEvenly()
                             }
                         }
 
@@ -487,17 +426,25 @@ Item {
                 // Uchwyty granic między kafelkami
                 Repeater {
                     id: dividerRepeater
-                    model: Math.max(0, repeaterTimeline.count - 1)
+                    model: TimelineViewModel.queueModel
 
                     Rectangle {
                         id: divider
                         required property int index
+                        required property var model
+
+                        visible: index < repeaterTimeline.count - 1
 
                         width: 4
                         height: parent.height
-                        x: (timeContainer.slots.length > index
-                            ? timeContainer.slots[index].endMin : 0) * timeContainer.pxPerMin - width / 2
+
+                        // Bind to the reactive delegate instead of the non-reactive Q_INVOKABLE
+                        property var targetDelegate: repeaterTimeline.itemAt(index)
+                        readonly property int endMin: model.scheduleEndMin
+
+                        x: endMin * timeContainer.pxPerMin - width / 2
                         z: 10
+
                         radius: 2
                         color: dividerArea.containsMouse || dividerArea.pressed
                             ? Kirigami.Theme.highlightColor
@@ -517,14 +464,14 @@ Item {
                             onPressed: (mouse) => {
                                 var mapped = mapToItem(trackContent, mouse.x, mouse.y)
                                 startDragX = mapped.x
-                                initialBoundary = timeContainer.slots[divider.index].endMin
+                                initialBoundary = divider.endMin
                             }
+
                             onPositionChanged: (mouse) => {
                                 if (pressed) {
                                     var mapped = mapToItem(trackContent, mouse.x, mouse.y)
-                                    var deltaPx = mapped.x - startDragX
-                                    var deltaMin = timeContainer.snapTo5(deltaPx / timeContainer.pxPerMin)
-                                    timeContainer.moveDivider(divider.index, initialBoundary + deltaMin)
+                                    var deltaMin = (mapped.x - startDragX) / timeContainer.pxPerMin
+                                    TimelineViewModel.moveTimeSlotDivider(divider.index, initialBoundary + deltaMin)
                                 }
                             }
                         }
@@ -534,22 +481,21 @@ Item {
         }
 
         // --------------------------------------------------------------------
-        // TRYB 1: WHEN LOGGING IN (prosta lista Drag & Drop — kolejność
-        // losowa/uporządkowana wybierana jest w popupie Configure)
+        // TRYB 1: WHEN LOGGING IN
         // --------------------------------------------------------------------
         SimpleQueueList {
             id: loginQueueList
         }
 
         // --------------------------------------------------------------------
-        // TRYB 2: ON A TIMER (jw. — interwał i kolejność ustawiane w popupie)
+        // TRYB 2: ON A TIMER
         // --------------------------------------------------------------------
         SimpleQueueList {
             id: timerQueueList
         }
 
         // --------------------------------------------------------------------
-        // TRYB 3: DAY OF WEEK (7 stałych slotów Pon..Nd)
+        // TRYB 3: DAY OF WEEK
         // --------------------------------------------------------------------
         DayOfWeekTrack {
             id: dayOfWeekTrack
