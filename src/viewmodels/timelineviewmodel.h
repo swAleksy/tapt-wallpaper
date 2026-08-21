@@ -123,11 +123,7 @@ signals:
     void timerIntervalUnitChanged();
 
 private:
-    // Applies `state` as the item's new EditState while preserving its
-    // schedule fields (scheduleStartMin/EndMin, weekdayMask) — shared by
-    // updateItem() and resetItemToDefaults(), since addOrUpdate()
-    // overwrites the whole QueueItem and both callers need the same
-    // find-preserve-rebuild dance. No-op if `id` isn't in the queue.
+
     void applyEditState(const QString& id, const EditState& state);
 
     void connectMonitorState(MonitorPlaylistState* state);
