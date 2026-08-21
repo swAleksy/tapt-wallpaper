@@ -65,21 +65,6 @@ void TimelineViewModel::setCurrentMonitorId(const QString& id)
     MonitorPlaylistState* state = ensureMonitorState(id);
     connectMonitorState(state);
 
-    // Deliberately NOT calling distributeTimeSlotsEvenly()/
-    // distributeWeekdaysEvenly() here. It's tempting, because QML's
-    // Repeater.onCountChanged won't fire when two monitors happen to have
-    // the same item count — but every mutator on QueueModel (add/update/
-    // remove/move/reset) is only ever reachable through queueModel(),
-    // i.e. only for whichever monitor is currently selected. That means a
-    // monitor's model is always already valid — auto-split or manually
-    // adjusted via moveTimeSlotDivider()/moveWeekdayDivider() — by the time
-    // you switch away from it; nothing is ever "stale". Distributing here
-    // unconditionally would instead silently discard any divider the user
-    // dragged by hand every time they revisit a monitor. If a future
-    // feature (e.g. importing a saved playlist into a non-current monitor)
-    // starts writing schedule data outside of queueModel(), it should
-    // distribute only the genuinely-new/unassigned items it creates, not
-    // reassign this whole method to a blanket redistribute.
     emit currentMonitorIdChanged();
     emit currentModeChanged();
     emit loginOrderModeChanged();
