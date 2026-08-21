@@ -36,6 +36,15 @@ QueueModel::QueueModel(QObject* parent)
 {
 }
 
+int QueueModel::findRow(const QString& id) const
+{
+    for (int i = 0; i < m_items.size(); ++i) {
+        if (m_items[i].id == id)
+            return i;
+    }
+    return -1;
+}
+
 
 int QueueModel::rowCount(const QModelIndex& parent) const
 {
@@ -97,17 +106,16 @@ QString QueueModel::idAt(int row) const
 
 void QueueModel::addOrUpdate(const QueueItem& item)
 {
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == item.id) {
-            m_items[i] = item;
+    const int row = findRow(item.id);
+    if (row != -1) {
+        m_items[row] = item;
 
-            emit dataChanged(index(i), index(i), {
-                SourcePathRole, ExportedPathRole, NameRole,
-                HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole,
-                ScheduleStartMinRole, ScheduleEndMinRole, WeekdayMaskRole
-            });
-            return;
-        }
+        emit dataChanged(index(row), index(row), {
+            SourcePathRole, ExportedPathRole, NameRole,
+            HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole,
+            ScheduleStartMinRole, ScheduleEndMinRole, WeekdayMaskRole
+        });
+        return;
     }
 
     beginInsertRows(QModelIndex(), m_items.size(), m_items.size());
@@ -119,16 +127,15 @@ void QueueModel::addOrUpdate(const QueueItem& item)
 
 void QueueModel::remove(const QString& id)
 {
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            beginRemoveRows(QModelIndex(), i, i);
-            m_items.removeAt(i);
-            endRemoveRows();
+    const int row = findRow(id);
+    if (row == -1)
+        return;
 
-            emit countChanged();
-            return;
-        }
-    }
+    beginRemoveRows(QModelIndex(), row, row);
+    m_items.removeAt(row);
+    endRemoveRows();
+
+    emit countChanged();
 }
 
 void QueueModel::clear()
@@ -145,15 +152,14 @@ void QueueModel::clear()
 
 void QueueModel::resetToDefaults(const QString& id)
 {
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            m_items[i].edit = EditState::identity();
+    const int row = findRow(id);
+    if (row == -1)
+        return;
 
-            emit dataChanged(index(i), index(i),
-                {HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole});
-            return;
-        }
-    }
+    m_items[row].edit = EditState::identity();
+
+    emit dataChanged(index(row), index(row),
+        {HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole});
 }
 
 void QueueModel::move(int from, int to)
@@ -175,28 +181,26 @@ void QueueModel::move(int from, int to)
 
 void QueueModel::setTimeSlot(const QString& id, int startMin, int endMin)
 {
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            m_items[i].scheduleStartMin = startMin;
-            m_items[i].scheduleEndMin = endMin;
+    const int row = findRow(id);
+    if (row == -1)
+        return;
 
-            emit dataChanged(index(i), index(i),
-                {ScheduleStartMinRole, ScheduleEndMinRole});
-            return;
-        }
-    }
+    m_items[row].scheduleStartMin = startMin;
+    m_items[row].scheduleEndMin = endMin;
+
+    emit dataChanged(index(row), index(row),
+        {ScheduleStartMinRole, ScheduleEndMinRole});
 }
 
 void QueueModel::setWeekdayMask(const QString& id, int mask)
 {
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            m_items[i].weekdayMask = mask;
+    const int row = findRow(id);
+    if (row == -1)
+        return;
 
-            emit dataChanged(index(i), index(i), {WeekdayMaskRole});
-            return;
-        }
-    }
+    m_items[row].weekdayMask = mask;
+
+    emit dataChanged(index(row), index(row), {WeekdayMaskRole});
 }
 
 void QueueModel::assignDay(const QString& id, int day)
@@ -228,15 +232,14 @@ void QueueModel::unassignDay(const QString& id, int day)
     if (day < 0 || day > 6)
         return;
 
+    const int row = findRow(id);
+    if (row == -1)
+        return;
+
     const int bit = 1 << day;
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            if (m_items[i].weekdayMask & bit) {
-                m_items[i].weekdayMask &= ~bit;
-                emit dataChanged(index(i), index(i), {WeekdayMaskRole});
-            }
-            return;
-        }
+    if (m_items[row].weekdayMask & bit) {
+        m_items[row].weekdayMask &= ~bit;
+        emit dataChanged(index(row), index(row), {WeekdayMaskRole});
     }
 }
 

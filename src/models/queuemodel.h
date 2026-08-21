@@ -78,8 +78,13 @@ signals:
     void countChanged();
 
 private:
-    QList<QueueItem> m_items;
+    // Linear scan by id, used by every id-keyed mutator below. m_items is
+    // expected to stay small (a single playlist's worth of wallpapers), so
+    // O(n) here is fine and keeps QueueItem::id as the only identity we
+    // need to track (no separate id->row map to keep in sync).
+    int findRow(const QString& id) const;
 
+    QList<QueueItem> m_items;
 };
 
 #endif // QUEUEMODEL_H

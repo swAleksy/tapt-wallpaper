@@ -130,16 +130,40 @@ Item {
                     Label { text: qsTr("When logging in settings...") }
                     RowLayout {
                         Label { text: qsTr("Order:") }
+
+                        // ButtonGroup owns exclusivity/checked state itself, so we
+                        // never bind `checked:` on the RadioButtons directly — a
+                        // literal `checked: expr` binding gets silently detached
+                        // the first time the control writes to `checked` on its
+                        // own (which auto-exclusive RadioButtons do on click).
+                        // Instead we drive `checkedButton` imperatively from the
+                        // model, and read it back the same way.
+                        ButtonGroup {
+                            id: loginOrderGroup
+                            onCheckedButtonChanged: {
+                                if (!checkedButton) return
+                                TimelineViewModel.loginOrderMode = (checkedButton === loginOrderRandom) ? 0 : 1
+                            }
+                        }
                         RadioButton {
+                            id: loginOrderRandom
                             text: qsTr("Random")
-                            checked: TimelineViewModel.loginOrderMode === 0
-                            onToggled: if (checked) TimelineViewModel.loginOrderMode = 0
+                            ButtonGroup.group: loginOrderGroup
                         }
                         RadioButton {
+                            id: loginOrderOrdered
                             text: qsTr("Ordered")
-                            checked: TimelineViewModel.loginOrderMode === 1
-                            onToggled: if (checked) TimelineViewModel.loginOrderMode = 1
+                            ButtonGroup.group: loginOrderGroup
                         }
+                        Connections {
+                            target: TimelineViewModel
+                            function onLoginOrderModeChanged() {
+                                loginOrderGroup.checkedButton =
+                                    TimelineViewModel.loginOrderMode === 0 ? loginOrderRandom : loginOrderOrdered
+                            }
+                        }
+                        Component.onCompleted: loginOrderGroup.checkedButton =
+                            TimelineViewModel.loginOrderMode === 0 ? loginOrderRandom : loginOrderOrdered
                     }
                     Item { Layout.fillHeight: true }
                 }
@@ -148,16 +172,36 @@ Item {
                     Label { text: qsTr("On a timer settings...") }
                     RowLayout {
                         Label { text: qsTr("Order:") }
+
+                        // See the "When logging in" Order group above for why
+                        // this uses ButtonGroup + checkedButton instead of
+                        // literal `checked:` bindings on each RadioButton.
+                        ButtonGroup {
+                            id: timerOrderGroup
+                            onCheckedButtonChanged: {
+                                if (!checkedButton) return
+                                TimelineViewModel.timerOrderMode = (checkedButton === timerOrderRandom) ? 0 : 1
+                            }
+                        }
                         RadioButton {
+                            id: timerOrderRandom
                             text: qsTr("Random")
-                            checked: TimelineViewModel.timerOrderMode === 0
-                            onToggled: if (checked) TimelineViewModel.timerOrderMode = 0
+                            ButtonGroup.group: timerOrderGroup
                         }
                         RadioButton {
+                            id: timerOrderOrdered
                             text: qsTr("Ordered")
-                            checked: TimelineViewModel.timerOrderMode === 1
-                            onToggled: if (checked) TimelineViewModel.timerOrderMode = 1
+                            ButtonGroup.group: timerOrderGroup
                         }
+                        Connections {
+                            target: TimelineViewModel
+                            function onTimerOrderModeChanged() {
+                                timerOrderGroup.checkedButton =
+                                    TimelineViewModel.timerOrderMode === 0 ? timerOrderRandom : timerOrderOrdered
+                            }
+                        }
+                        Component.onCompleted: timerOrderGroup.checkedButton =
+                            TimelineViewModel.timerOrderMode === 0 ? timerOrderRandom : timerOrderOrdered
                     }
                     RowLayout {
                         Label { text: qsTr("Change every:") }
@@ -438,8 +482,13 @@ Item {
                         width: 4
                         height: parent.height
 
-                        // Bind to the reactive delegate instead of the non-reactive Q_INVOKABLE
-                        property var targetDelegate: repeaterTimeline.itemAt(index)
+                        // Read the role directly off this divider's own model
+                        // index rather than reaching into the tile Repeater via
+                        // itemAt() — itemAt() is a plain method call with no
+                        // change notification, so a binding built on it won't
+                        // reliably refresh when the delegate at that index
+                        // changes (see DayOfWeekTrack.qml, which used to do this
+                        // and has been switched to the same direct-read pattern).
                         readonly property int endMin: model.scheduleEndMin
 
                         x: endMin * timeContainer.pxPerMin - width / 2

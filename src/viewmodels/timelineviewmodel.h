@@ -1,6 +1,7 @@
 #ifndef TIMELINEVIEWMODEL_H
 #define TIMELINEVIEWMODEL_H
 
+#include "models/editstate.h"
 #include "models/monitorplayliststate.h"
 #include "models/playlistenums.h"
 #include "models/queuemodel.h"
@@ -122,6 +123,13 @@ signals:
     void timerIntervalUnitChanged();
 
 private:
+    // Applies `state` as the item's new EditState while preserving its
+    // schedule fields (scheduleStartMin/EndMin, weekdayMask) — shared by
+    // updateItem() and resetItemToDefaults(), since addOrUpdate()
+    // overwrites the whole QueueItem and both callers need the same
+    // find-preserve-rebuild dance. No-op if `id` isn't in the queue.
+    void applyEditState(const QString& id, const EditState& state);
+
     void connectMonitorState(MonitorPlaylistState* state);
     // Zwraca istniejący stan dla danego monitora albo tworzy nowy (pusta
     // kolejka, domyślny tryb), jeśli to pierwsze odwołanie do tego ekranu.
@@ -132,6 +140,11 @@ private:
     MonitorPlaylistState* currentState() const;
 
     QString m_currentMonitorId;
+
+    // Owning map: each MonitorPlaylistState* is `new`'d with `this` as its
+    // QObject parent (see ensureMonitorState()), so Qt's parent-child
+    // ownership frees them on TimelineViewModel destruction. The map
+    // itself does not own them independently.
     QMap<QString, MonitorPlaylistState*> m_monitorStates;
 };
 

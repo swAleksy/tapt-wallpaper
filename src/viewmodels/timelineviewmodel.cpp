@@ -32,7 +32,16 @@ MonitorPlaylistState* TimelineViewModel::ensureMonitorState(const QString& id)
 
 MonitorPlaylistState* TimelineViewModel::currentState() const
 {
-    return m_monitorStates.value(m_currentMonitorId);
+    MonitorPlaylistState* state = m_monitorStates.value(m_currentMonitorId);
+
+    // Invariant: m_currentMonitorId always has a matching entry in
+    // m_monitorStates, because the only two writers of m_currentMonitorId
+    // (the ctor and setCurrentMonitorId()) both call ensureMonitorState()
+    // first. Every other method on this class dereferences currentState()
+    // without a null check, so if this ever fires, look at whichever code
+    // path just changed m_currentMonitorId directly.
+    Q_ASSERT(state);
+    return state;
 }
 
 void TimelineViewModel::connectMonitorState(MonitorPlaylistState* state)
@@ -56,6 +65,21 @@ void TimelineViewModel::setCurrentMonitorId(const QString& id)
     MonitorPlaylistState* state = ensureMonitorState(id);
     connectMonitorState(state);
 
+    // Deliberately NOT calling distributeTimeSlotsEvenly()/
+    // distributeWeekdaysEvenly() here. It's tempting, because QML's
+    // Repeater.onCountChanged won't fire when two monitors happen to have
+    // the same item count — but every mutator on QueueModel (add/update/
+    // remove/move/reset) is only ever reachable through queueModel(),
+    // i.e. only for whichever monitor is currently selected. That means a
+    // monitor's model is always already valid — auto-split or manually
+    // adjusted via moveTimeSlotDivider()/moveWeekdayDivider() — by the time
+    // you switch away from it; nothing is ever "stale". Distributing here
+    // unconditionally would instead silently discard any divider the user
+    // dragged by hand every time they revisit a monitor. If a future
+    // feature (e.g. importing a saved playlist into a non-current monitor)
+    // starts writing schedule data outside of queueModel(), it should
+    // distribute only the genuinely-new/unassigned items it creates, not
+    // reassign this whole method to a blanket redistribute.
     emit currentMonitorIdChanged();
     emit currentModeChanged();
     emit loginOrderModeChanged();
@@ -136,13 +160,39 @@ QString TimelineViewModel::addItem(
         lutPath
     };
 
-
     QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QueueItem newItem {id, sourcePath, name, state};
 
-    queueModel() -> addOrUpdate(newItem);
+    queueModel()->addOrUpdate(newItem);
     return id;
+}
 
+void TimelineViewModel::applyEditState(const QString &id, const EditState &state)
+{
+    QueueModel* model = queueModel();
+
+    for (int i = 0; i < model->rowCount(); ++i) {
+        const QModelIndex index = model->index(i);
+        if (model->data(index, QueueModel::IdRole).toString() != id)
+            continue;
+
+        QueueItem updatedItem {
+            id,
+            model->data(index, QueueModel::SourcePathRole).toString(),
+            model->data(index, QueueModel::NameRole).toString(),
+            state
+        };
+
+        // addOrUpdate() nadpisuje CAŁĄ strukturę QueueItem, więc bez tego
+        // edycja koloru/jasności (albo jej reset) po cichu zerowałaby
+        // przypisania harmonogramu (Time of the day / Day of week).
+        updatedItem.scheduleStartMin = model->data(index, QueueModel::ScheduleStartMinRole).toInt();
+        updatedItem.scheduleEndMin = model->data(index, QueueModel::ScheduleEndMinRole).toInt();
+        updatedItem.weekdayMask = model->data(index, QueueModel::WeekdayMaskRole).toInt();
+
+        model->addOrUpdate(updatedItem);
+        return;
+    }
 }
 
 void TimelineViewModel::updateItem(
@@ -153,72 +203,12 @@ void TimelineViewModel::updateItem(
     bool flipped,
     const QString &lutPath)
 {
-    EditState state {
-        hue,
-        brightness,
-        saturation,
-        flipped,
-        lutPath
-    };
-
-    QueueModel* model = queueModel();
-
-    // Find the item and update it
-    for (int i = 0; i < model->rowCount(); ++i) {
-        QModelIndex index = model->index(i);
-        QString itemId = model->data(index, QueueModel::IdRole).toString();
-        if (itemId == id) {
-            // Create a new QueueItem with updated edit state
-            QueueItem updatedItem {
-                id,
-                model->data(index, QueueModel::SourcePathRole).toString(),
-                model->data(index, QueueModel::NameRole).toString(),
-                state
-            };
-
-            // addOrUpdate() nadpisuje CAŁĄ strukturę QueueItem, więc bez
-            // tego edycja koloru/jasności itd. po cichu zerowałaby
-            // przypisania harmonogramu (Time of the day / Day of week).
-            updatedItem.scheduleStartMin = model->data(index, QueueModel::ScheduleStartMinRole).toInt();
-            updatedItem.scheduleEndMin = model->data(index, QueueModel::ScheduleEndMinRole).toInt();
-            updatedItem.weekdayMask = model->data(index, QueueModel::WeekdayMaskRole).toInt();
-
-            model->addOrUpdate(updatedItem);
-            break;
-        }
-    }
+    applyEditState(id, EditState { hue, brightness, saturation, flipped, lutPath });
 }
 
 void TimelineViewModel::resetItemToDefaults(const QString &id)
 {
-    // Reset to default edit state
-    EditState defaultState = EditState::identity();
-
-    QueueModel* model = queueModel();
-
-    // Find the item and update it
-    for (int i = 0; i < model->rowCount(); ++i) {
-        QModelIndex index = model->index(i);
-        QString itemId = model->data(index, QueueModel::IdRole).toString();
-        if (itemId == id) {
-            // Create a new QueueItem with default edit state
-            QueueItem updatedItem {
-                id,
-                model->data(index, QueueModel::SourcePathRole).toString(),
-                model->data(index, QueueModel::NameRole).toString(),
-                defaultState
-            };
-
-            // Resetowanie korekt obrazu nie powinno kasować harmonogramu —
-            // patrz komentarz w updateItem().
-            updatedItem.scheduleStartMin = model->data(index, QueueModel::ScheduleStartMinRole).toInt();
-            updatedItem.scheduleEndMin = model->data(index, QueueModel::ScheduleEndMinRole).toInt();
-            updatedItem.weekdayMask = model->data(index, QueueModel::WeekdayMaskRole).toInt();
-
-            model->addOrUpdate(updatedItem);
-            break;
-        }
-    }
+    applyEditState(id, EditState::identity());
 }
 
 void TimelineViewModel::removeItem(const QString &id)
@@ -235,24 +225,22 @@ void TimelineViewModel::editItem(const QString &id)
 {
     QueueModel* model = queueModel();
 
-    // Find the item to get its details
     for (int i = 0; i < model->rowCount(); ++i) {
-        QModelIndex index = model->index(i);
-        QString itemId = model->data(index, QueueModel::IdRole).toString();
-        if (itemId == id) {
-            // Emit signal with item details for editing
-            emit itemRequestedForEditing(
-                id,
-                model->data(index, QueueModel::SourcePathRole).toString(),
-                model->data(index, QueueModel::NameRole).toString(),
-                model->data(index, QueueModel::HueRole).toReal(),
-                model->data(index, QueueModel::BrightnessRole).toReal(),
-                model->data(index, QueueModel::SaturationRole).toReal(),
-                model->data(index, QueueModel::FlippedRole).toBool(),
-                model->data(index, QueueModel::LutPathRole).toString()
-            );
-            break;
-        }
+        const QModelIndex index = model->index(i);
+        if (model->data(index, QueueModel::IdRole).toString() != id)
+            continue;
+
+        emit itemRequestedForEditing(
+            id,
+            model->data(index, QueueModel::SourcePathRole).toString(),
+            model->data(index, QueueModel::NameRole).toString(),
+            model->data(index, QueueModel::HueRole).toReal(),
+            model->data(index, QueueModel::BrightnessRole).toReal(),
+            model->data(index, QueueModel::SaturationRole).toReal(),
+            model->data(index, QueueModel::FlippedRole).toBool(),
+            model->data(index, QueueModel::LutPathRole).toString()
+        );
+        return;
     }
 }
 

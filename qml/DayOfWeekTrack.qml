@@ -238,9 +238,20 @@ Item {
                 width: 4
                 height: parent.height
 
-                // Bind to the reactive delegate
-                property var targetDelegate: repeaterDay.itemAt(index)
-                readonly property int endDay: targetDelegate ? targetDelegate.endDay : 0
+                // Decode endDay from this divider's own model.weekdayMask
+                // instead of reaching into the tile Repeater via
+                // repeaterDay.itemAt(index). itemAt() is a plain method call
+                // with no change notification, so a binding built on it isn't
+                // guaranteed to refresh when the delegate at that index
+                // changes (e.g. after a drag-reorder) — only when `index`
+                // itself changes. Reading the role directly, the same way
+                // TimelinePanel.qml's time-of-day divider reads
+                // model.scheduleEndMin, is the reactive, robust version.
+                function getEndDay(mask) {
+                    if (!mask) return 0;
+                    let hi = 6; while (!(mask & (1 << hi))) --hi; return hi + 1;
+                }
+                readonly property int endDay: getEndDay(model.weekdayMask)
 
                 x: endDay * root.pxPerDay - width / 2
                 z: 10
