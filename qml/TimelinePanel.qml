@@ -104,7 +104,7 @@ Item {
                         qsTr("Day of week")
                     ]
 
-                    currentIndex: TimelineViewModel.currentMode
+                    currentIndex: TimelineViewModel.monitorState.currentMode
 
                     onActivated: (index) => {
                         TimelineViewModel.switchMode(index);
@@ -142,7 +142,7 @@ Item {
                             id: loginOrderGroup
                             onCheckedButtonChanged: {
                                 if (!checkedButton) return
-                                TimelineViewModel.loginOrderMode = (checkedButton === loginOrderRandom) ? 0 : 1
+                                TimelineViewModel.monitorState.loginOrderMode = (checkedButton === loginOrderRandom) ? 0 : 1
                             }
                         }
                         RadioButton {
@@ -156,14 +156,18 @@ Item {
                             ButtonGroup.group: loginOrderGroup
                         }
                         Connections {
-                            target: TimelineViewModel
+                            // target jest obiektem MonitorPlaylistState (nie
+                            // TimelineViewModel) — gdy TimelineViewModel.monitorState
+                            // wskaże na inny monitor, Connections samo przełączy
+                            // subskrypcję na sygnały nowego obiektu.
+                            target: TimelineViewModel.monitorState
                             function onLoginOrderModeChanged() {
                                 loginOrderGroup.checkedButton =
-                                    TimelineViewModel.loginOrderMode === 0 ? loginOrderRandom : loginOrderOrdered
+                                    TimelineViewModel.monitorState.loginOrderMode === 0 ? loginOrderRandom : loginOrderOrdered
                             }
                         }
                         Component.onCompleted: loginOrderGroup.checkedButton =
-                            TimelineViewModel.loginOrderMode === 0 ? loginOrderRandom : loginOrderOrdered
+                            TimelineViewModel.monitorState.loginOrderMode === 0 ? loginOrderRandom : loginOrderOrdered
                     }
                     Item { Layout.fillHeight: true }
                 }
@@ -180,7 +184,7 @@ Item {
                             id: timerOrderGroup
                             onCheckedButtonChanged: {
                                 if (!checkedButton) return
-                                TimelineViewModel.timerOrderMode = (checkedButton === timerOrderRandom) ? 0 : 1
+                                TimelineViewModel.monitorState.timerOrderMode = (checkedButton === timerOrderRandom) ? 0 : 1
                             }
                         }
                         RadioButton {
@@ -194,14 +198,14 @@ Item {
                             ButtonGroup.group: timerOrderGroup
                         }
                         Connections {
-                            target: TimelineViewModel
+                            target: TimelineViewModel.monitorState
                             function onTimerOrderModeChanged() {
                                 timerOrderGroup.checkedButton =
-                                    TimelineViewModel.timerOrderMode === 0 ? timerOrderRandom : timerOrderOrdered
+                                    TimelineViewModel.monitorState.timerOrderMode === 0 ? timerOrderRandom : timerOrderOrdered
                             }
                         }
                         Component.onCompleted: timerOrderGroup.checkedButton =
-                            TimelineViewModel.timerOrderMode === 0 ? timerOrderRandom : timerOrderOrdered
+                            TimelineViewModel.monitorState.timerOrderMode === 0 ? timerOrderRandom : timerOrderOrdered
                     }
                     RowLayout {
                         Label { text: qsTr("Change every:") }
@@ -209,14 +213,14 @@ Item {
                             id: timerIntervalSpin
                             from: 1
                             to: 999
-                            value: TimelineViewModel.timerIntervalValue
-                            onValueModified: TimelineViewModel.timerIntervalValue = value
+                            value: TimelineViewModel.monitorState.timerIntervalValue
+                            onValueModified: TimelineViewModel.monitorState.timerIntervalValue = value
                         }
                         ComboBox {
                             id: timerUnitCombo
                             model: [qsTr("Minutes"), qsTr("Hours")]
-                            currentIndex: TimelineViewModel.timerIntervalUnit
-                            onActivated: TimelineViewModel.timerIntervalUnit = currentIndex
+                            currentIndex: TimelineViewModel.monitorState.timerIntervalUnit
+                            onActivated: TimelineViewModel.monitorState.timerIntervalUnit = currentIndex
                         }
                     }
                     Item { Layout.fillHeight: true }
@@ -262,7 +266,7 @@ Item {
         anchors.bottom: toolbar.top
         anchors.left: parent.left
         anchors.right: parent.right
-        currentIndex: TimelineViewModel.currentMode
+        currentIndex: TimelineViewModel.monitorState.currentMode
 
         // --------------------------------------------------------------------
         // TRYB 0: TIME OF THE DAY

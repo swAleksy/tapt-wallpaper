@@ -35,11 +35,20 @@ class TimelineViewModel : public QObject {
     // istniejący QML porównujący np. `currentMode === 3` nadal działa bez
     // zmian — enum jest tu głównie po to, żeby C++ i JSON (patrz
     // exportPlaylist()) nie posługiwały się gołymi liczbami.
-    Q_PROPERTY(PlaylistEnums::Mode currentMode READ currentMode WRITE setCurrentMode NOTIFY currentModeChanged)
-    Q_PROPERTY(PlaylistEnums::OrderMode loginOrderMode READ loginOrderMode WRITE setLoginOrderMode NOTIFY loginOrderModeChanged)
-    Q_PROPERTY(PlaylistEnums::OrderMode timerOrderMode READ timerOrderMode WRITE setTimerOrderMode NOTIFY timerOrderModeChanged)
-    Q_PROPERTY(int timerIntervalValue READ timerIntervalValue WRITE setTimerIntervalValue NOTIFY timerIntervalValueChanged)
-    Q_PROPERTY(PlaylistEnums::IntervalUnit timerIntervalUnit READ timerIntervalUnit WRITE setTimerIntervalUnit NOTIFY timerIntervalUnitChanged)
+    //
+    // Cały ten stan (tryb + ustawienia wszystkich trybów) żyje teraz w
+    // jednym Q_PROPERTY zamiast pięciu osobnych properties-proxy — QML
+    // wiąże się bezpośrednio z właściwościami zwróconego obiektu, np.
+    // `TimelineViewModel.monitorState.currentMode`. Ten sam wzorzec co
+    // queueModel powyżej: obiekt ma własne sygnały zmiany
+    // (MonitorPlaylistState::currentModeChanged itd.), więc QML subskrybuje
+    // je bezpośrednio i sam przełącza subskrypcję, gdy `monitorState`
+    // wskaże na inny obiekt (czyli przy zmianie monitora). Dzięki temu
+    // dodanie kolejnego ustawienia trybu wymaga zmiany tylko w
+    // MonitorPlaylistState — bez duplikowania property+sygnału tutaj i bez
+    // ręcznego forwardowania w setCurrentMonitorId().
+    Q_PROPERTY(MonitorPlaylistState* monitorState READ currentState NOTIFY currentMonitorIdChanged)
+
     Q_PROPERTY(int maxDayOfWeekItems READ maxDayOfWeekItems CONSTANT)
 
 public:
@@ -51,22 +60,14 @@ public:
 
     QueueModel* queueModel() const;
 
-    PlaylistEnums::Mode currentMode() const;
-    void setCurrentMode(PlaylistEnums::Mode mode);
+    // Stan monitora wskazywanego aktualnie przez m_currentMonitorId. Zawsze
+    // istnieje po konstrukcji (patrz ctor) i po każdym setCurrentMonitorId().
+    // Publiczne (nie private, jak reszta prywatnych helperów niżej), bo to
+    // READ dla Q_PROPERTY monitorState powyżej — moc generuje wywołanie
+    // tej metody z zewnątrz klasy, więc musi być dostępna.
+    MonitorPlaylistState* currentState() const;
 
-    PlaylistEnums::OrderMode loginOrderMode() const;
-    void setLoginOrderMode(PlaylistEnums::OrderMode mode);
-
-    PlaylistEnums::OrderMode timerOrderMode() const;
-    void setTimerOrderMode(PlaylistEnums::OrderMode mode);
-
-    int timerIntervalValue() const;
-    void setTimerIntervalValue(int value);
-
-    PlaylistEnums::IntervalUnit timerIntervalUnit() const;
-    void setTimerIntervalUnit(PlaylistEnums::IntervalUnit unit);
-
-    static constexpr int kMaxDayOfWeekItems = 7;
+    static constexpr int kMaxDayOfWeekItems = PlaylistEnums::kDaysInWeek;
     int maxDayOfWeekItems() const { return kMaxDayOfWeekItems; }
 
     Q_INVOKABLE QString addItem(
@@ -116,24 +117,18 @@ signals:
         const QString& lutPath);
 
     void currentMonitorIdChanged();
-    void currentModeChanged();
-    void loginOrderModeChanged();
-    void timerOrderModeChanged();
-    void timerIntervalValueChanged();
-    void timerIntervalUnitChanged();
 
 private:
-
+    // Applies `state` as the item's new EditState while preserving its
+    // schedule fields (scheduleStartMin/EndMin, weekdayMask) — shared by
+    // updateItem() and resetItemToDefaults(), since addOrUpdate()
+    // overwrites the whole QueueItem and both callers need the same
+    // find-preserve-rebuild dance. No-op if `id` isn't in the queue.
     void applyEditState(const QString& id, const EditState& state);
 
-    void connectMonitorState(MonitorPlaylistState* state);
     // Zwraca istniejący stan dla danego monitora albo tworzy nowy (pusta
     // kolejka, domyślny tryb), jeśli to pierwsze odwołanie do tego ekranu.
     MonitorPlaylistState* ensureMonitorState(const QString& id);
-
-    // Stan monitora wskazywanego aktualnie przez m_currentMonitorId. Zawsze
-    // istnieje po konstrukcji (patrz ctor) i po każdym setCurrentMonitorId().
-    MonitorPlaylistState* currentState() const;
 
     QString m_currentMonitorId;
 

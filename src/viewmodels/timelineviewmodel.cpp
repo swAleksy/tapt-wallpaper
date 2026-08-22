@@ -16,7 +16,7 @@ TimelineViewModel::TimelineViewModel(QObject *parent)
 {
     QScreen* primary = QGuiApplication::primaryScreen();
     m_currentMonitorId = primary ? primary->name() : QStringLiteral("default");
-    connectMonitorState(ensureMonitorState(m_currentMonitorId));
+    ensureMonitorState(m_currentMonitorId);
 }
 
 MonitorPlaylistState* TimelineViewModel::ensureMonitorState(const QString& id)
@@ -44,88 +44,27 @@ MonitorPlaylistState* TimelineViewModel::currentState() const
     return state;
 }
 
-void TimelineViewModel::connectMonitorState(MonitorPlaylistState* state)
-{
-    connect(state, &MonitorPlaylistState::currentModeChanged, this, &TimelineViewModel::currentModeChanged);
-    connect(state, &MonitorPlaylistState::loginOrderModeChanged, this, &TimelineViewModel::loginOrderModeChanged);
-    connect(state, &MonitorPlaylistState::timerOrderModeChanged, this, &TimelineViewModel::timerOrderModeChanged);
-    connect(state, &MonitorPlaylistState::timerIntervalValueChanged, this, &TimelineViewModel::timerIntervalValueChanged);
-    connect(state, &MonitorPlaylistState::timerIntervalUnitChanged, this, &TimelineViewModel::timerIntervalUnitChanged);
-}
-
 void TimelineViewModel::setCurrentMonitorId(const QString& id)
 {
     if (id.isEmpty() || id == m_currentMonitorId)
         return;
 
-    if (MonitorPlaylistState* prev = currentState())
-        disconnect(prev, nullptr, this, nullptr);
-
     m_currentMonitorId = id;
-    MonitorPlaylistState* state = ensureMonitorState(id);
-    connectMonitorState(state);
+    ensureMonitorState(id);
 
+    // Jeden emit wystarczy: monitorState (Q_PROPERTY, READ currentState)
+    // dzieli ten sam NOTIFY co currentMonitorId, więc QML powiązany np. z
+    // `TimelineViewModel.monitorState.currentMode` automatycznie przełączy
+    // subskrypcję na sygnały nowego obiektu MonitorPlaylistState. Wcześniej
+    // trzeba tu było ręcznie disconnect/connect i re-emitować pięć
+    // osobnych sygnałów (currentModeChanged, loginOrderModeChanged, ...) —
+    // to zniknęło razem z properties-proxy w nagłówku.
     emit currentMonitorIdChanged();
-    emit currentModeChanged();
-    emit loginOrderModeChanged();
-    emit timerOrderModeChanged();
-    emit timerIntervalValueChanged();
-    emit timerIntervalUnitChanged();
 }
 
 QueueModel* TimelineViewModel::queueModel() const
 {
     return currentState()->queueModel();
-}
-
-PlaylistEnums::Mode TimelineViewModel::currentMode() const
-{
-    return currentState()->currentMode();
-}
-
-void TimelineViewModel::setCurrentMode(PlaylistEnums::Mode mode)
-{
-    currentState()->setCurrentMode(mode);
-}
-
-PlaylistEnums::OrderMode TimelineViewModel::loginOrderMode() const
-{
-    return currentState()->loginOrderMode();
-}
-
-void TimelineViewModel::setLoginOrderMode(PlaylistEnums::OrderMode mode)
-{
-    currentState()->setLoginOrderMode(mode);
-}
-
-PlaylistEnums::OrderMode TimelineViewModel::timerOrderMode() const
-{
-    return currentState()->timerOrderMode();
-}
-
-void TimelineViewModel::setTimerOrderMode(PlaylistEnums::OrderMode mode)
-{
-    currentState()->setTimerOrderMode(mode);
-}
-
-int TimelineViewModel::timerIntervalValue() const
-{
-    return currentState()->timerIntervalValue();
-}
-
-void TimelineViewModel::setTimerIntervalValue(int value)
-{
-    currentState()->setTimerIntervalValue(value);
-}
-
-PlaylistEnums::IntervalUnit TimelineViewModel::timerIntervalUnit() const
-{
-    return currentState()->timerIntervalUnit();
-}
-
-void TimelineViewModel::setTimerIntervalUnit(PlaylistEnums::IntervalUnit unit)
-{
-    currentState()->setTimerIntervalUnit(unit);
 }
 
 QString TimelineViewModel::addItem(
@@ -353,5 +292,5 @@ void TimelineViewModel::moveWeekdayDivider(int i, qreal d)
 
 void TimelineViewModel::switchMode(int modeIndex)
 {
-    setCurrentMode(static_cast<PlaylistEnums::Mode>(modeIndex));
+    currentState()->setCurrentMode(static_cast<PlaylistEnums::Mode>(modeIndex));
 }

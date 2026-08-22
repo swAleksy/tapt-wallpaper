@@ -37,28 +37,11 @@ public:
 
     void addOrUpdate(const QueueItem& item); // po id
     void remove(const QString& id);
-    void resetToDefaults(const QString& id); // edit = EditState::identity()
     void move(int from, int to);
 
 
     void clear();
     Q_INVOKABLE QString idAt(int row) const;
-
-    // Time of the day: przypisanie/wyczyszczenie przedziału czasowego.
-    // startMin == -1 (lub endMin == -1) czyści przypisanie.
-    Q_INVOKABLE void setTimeSlot(const QString& id, int startMin, int endMin);
-
-    // Day of week: ustawienie pełnej maski bitowej naraz
-    // Nie wymusza wyłączności między elementami — użyj assignDay(), jeśli
-    // dany dzień ma należeć maks. do jednego obrazu naraz.
-    Q_INVOKABLE void setWeekdayMask(const QString& id, int mask);
-
-    // Przypisuje dzień (0=Pon ... 6=Nd) do jednego, konkretnego obrazu i
-    // JEDNOCZEŚNIE zdejmuje ten dzień z wszystkich pozostałych elementów —
-    // gwarantuje, że dany dzień tygodnia ma co najwyżej jednego "właściciela".
-    Q_INVOKABLE void assignDay(const QString& id, int day);
-    // Zdejmuje przypisanie dnia z konkretnego obrazu (bez wpływu na inne).
-    Q_INVOKABLE void unassignDay(const QString& id, int day);
 
     // Time of the day
     Q_INVOKABLE void distributeTimeSlotsEvenly();
@@ -78,6 +61,10 @@ signals:
     void countChanged();
 
 private:
+    // Linear scan by id, used by every id-keyed mutator below. m_items is
+    // expected to stay small (a single playlist's worth of wallpapers), so
+    // O(n) here is fine and keeps QueueItem::id as the only identity we
+    // need to track (no separate id->row map to keep in sync).
     int findRow(const QString& id) const;
 
     QList<QueueItem> m_items;

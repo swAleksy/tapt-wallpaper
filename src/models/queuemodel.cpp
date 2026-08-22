@@ -1,18 +1,19 @@
+#include "models/playlistenums.h"
 #include "models/queuemodel.h"
 #include <algorithm>
 
 namespace {
 constexpr int kMinSlotMinutes = 30;
 constexpr int kSnapMinutes = 5;
-constexpr int kMaxWeekdayItems = 7;
+constexpr int kMaxWeekdayItems = PlaylistEnums::kDaysInWeek;
 
 int snapTo(qreal val, int step) { return qRound(val / step) * step; }
 
 // Decodes the contiguous [startDay, endDay) run of set bits in mask.
-// Only distributeWeekdaysEvenly()/moveWeekdayDivider() ever write
-// weekdayMask for this feature, so contiguity holds — but this doesn't
-// verify it. If something else starts calling setWeekdayMask()/assignDay()
-// on these same items, that assumption breaks silently.
+// distributeWeekdaysEvenly()/moveWeekdayDivider() are the ONLY writers of
+// weekdayMask in this class (see QueueModel's public API), so contiguity
+// is a real invariant, not just a hope: there's no other entry point left
+// that could write a non-contiguous mask.
 std::pair<int, int> decodeDayRange(int mask)
 {
     if (mask == 0) return {0, 0};
@@ -150,18 +151,6 @@ void QueueModel::clear()
     emit countChanged();
 }
 
-void QueueModel::resetToDefaults(const QString& id)
-{
-    const int row = findRow(id);
-    if (row == -1)
-        return;
-
-    m_items[row].edit = EditState::identity();
-
-    emit dataChanged(index(row), index(row),
-        {HueRole, BrightnessRole, SaturationRole, FlippedRole, LutPathRole});
-}
-
 void QueueModel::move(int from, int to)
 {
     if (from == to || from < 0 || from >= m_items.size() || to < 0 || to >= m_items.size())
@@ -178,71 +167,6 @@ void QueueModel::move(int from, int to)
 
     endMoveRows();
 }
-
-void QueueModel::setTimeSlot(const QString& id, int startMin, int endMin)
-{
-    const int row = findRow(id);
-    if (row == -1)
-        return;
-
-    m_items[row].scheduleStartMin = startMin;
-    m_items[row].scheduleEndMin = endMin;
-
-    emit dataChanged(index(row), index(row),
-        {ScheduleStartMinRole, ScheduleEndMinRole});
-}
-
-void QueueModel::setWeekdayMask(const QString& id, int mask)
-{
-    const int row = findRow(id);
-    if (row == -1)
-        return;
-
-    m_items[row].weekdayMask = mask;
-
-    emit dataChanged(index(row), index(row), {WeekdayMaskRole});
-}
-
-void QueueModel::assignDay(const QString& id, int day)
-{
-    if (day < 0 || day > 6)
-        return;
-
-    const int bit = 1 << day;
-    for (int i = 0; i < m_items.size(); ++i) {
-        const bool isTarget = (m_items[i].id == id);
-        const bool hadBit = m_items[i].weekdayMask & bit;
-
-        if (isTarget) {
-            if (!hadBit) {
-                m_items[i].weekdayMask |= bit;
-                emit dataChanged(index(i), index(i), {WeekdayMaskRole});
-            }
-        } else if (hadBit) {
-            // Zdejmij ten dzień każdemu innemu elementowi, który go miał —
-            // dzień tygodnia może należeć maks. do jednego obrazu naraz.
-            m_items[i].weekdayMask &= ~bit;
-            emit dataChanged(index(i), index(i), {WeekdayMaskRole});
-        }
-    }
-}
-
-void QueueModel::unassignDay(const QString& id, int day)
-{
-    if (day < 0 || day > 6)
-        return;
-
-    const int row = findRow(id);
-    if (row == -1)
-        return;
-
-    const int bit = 1 << day;
-    if (m_items[row].weekdayMask & bit) {
-        m_items[row].weekdayMask &= ~bit;
-        emit dataChanged(index(row), index(row), {WeekdayMaskRole});
-    }
-}
-
 
 void QueueModel::distributeTimeSlotsEvenly()
 {

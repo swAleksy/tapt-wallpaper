@@ -13,6 +13,13 @@ namespace PlaylistEnums {
 Q_NAMESPACE
 QML_ELEMENT
 
+// Jedyne źródło prawdy dla "7 dni tygodnia" w trybie Day of week.
+// Wcześniej ta sama wartość była zaszyta osobno jako literał w trzech
+// miejscach (TimelineViewModel::kMaxDayOfWeekItems, QueueModel's
+// kMaxWeekdayItems, DayOfWeekTrack.qml's dayCount) bez wspólnego źródła —
+// zmiana jednej nie gwarantowała zmiany pozostałych.
+constexpr int kDaysInWeek = 7;
+
 enum class Mode {
     TimeOfDay = 0,
     WhenLoggingIn = 1,

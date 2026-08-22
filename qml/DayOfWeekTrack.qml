@@ -13,7 +13,7 @@ Item {
     implicitHeight: 68
     Layout.minimumHeight: 68
 
-    readonly property int dayCount: 7
+    readonly property int dayCount: TimelineViewModel.maxDayOfWeekItems
     readonly property var dayNames: [
         qsTr("Mon"), qsTr("Tue"), qsTr("Wed"), qsTr("Thu"),
         qsTr("Fri"), qsTr("Sat"), qsTr("Sun")
@@ -89,18 +89,24 @@ Item {
 
                 visible: index >= 0 && index < root.scheduledCount
 
-                function getStartDay(mask) {
-                        if (!mask) return 0;
-                        let lo = 0; while (!(mask & (1 << lo))) ++lo; return lo;
-                    }
-
-                function getEndDay(mask) {
-                    if (!mask) return 0;
-                    let hi = 6; while (!(mask & (1 << hi))) --hi; return hi + 1;
+                // Dekodowanie weekdayMask -> (startDay, endDay) ma jedną
+                // implementację: QueueModel::scheduleStartDayAt()/
+                // scheduleEndDayAt() (C++, patrz queuemodel.cpp). Odczyt
+                // `model.weekdayMask` poniżej nie służy do liczenia —
+                // służy wyłącznie do tego, żeby ten binding miał zależność
+                // od roli WeekdayMaskRole. Bez tego property nie
+                // odświeżyłoby się po zmianie maski: wywołanie
+                // Q_INVOKABLE samo w sobie nie tworzy zależności
+                // reaktywnej w QML (ten sam problem opisuje komentarz przy
+                // dividerze niżej i przy odpowiedniku w TimelinePanel.qml).
+                readonly property int startDay: {
+                    model.weekdayMask
+                    return index >= 0 ? TimelineViewModel.queueModel.scheduleStartDayAt(index) : 0
                 }
-
-                readonly property int startDay: index >= 0 ? getStartDay(model.weekdayMask) : 0
-                readonly property int endDay: index >= 0 ? getEndDay(model.weekdayMask) : 0
+                readonly property int endDay: {
+                    model.weekdayMask
+                    return index >= 0 ? TimelineViewModel.queueModel.scheduleEndDayAt(index) : 0
+                }
 
                 y: 0
                 height: trackContent.height
@@ -238,12 +244,26 @@ Item {
                 width: 4
                 height: parent.height
 
-
-                function getEndDay(mask) {
-                    if (!mask) return 0;
-                    let hi = 6; while (!(mask & (1 << hi))) --hi; return hi + 1;
+                // Decode endDay from this divider's own model.weekdayMask
+                // instead of reaching into the tile Repeater via
+                // repeaterDay.itemAt(index). itemAt() is a plain method call
+                // with no change notification, so a binding built on it isn't
+                // guaranteed to refresh when the delegate at that index
+                // changes (e.g. after a drag-reorder) — only when `index`
+                // itself changes. Reading the role directly, the same way
+                // TimelinePanel.qml's time-of-day divider reads
+                // model.scheduleEndMin, is the reactive, robust version.
+                //
+                // Samo liczenie (bit -> dzień) deleguje do
+                // QueueModel::scheduleEndDayAt() zamiast trzeciej kopii tej
+                // samej logiki dekodowania maski (patrz repeaterDay wyżej
+                // i QueueModel::decodeDayRange() w queuemodel.cpp) — odczyt
+                // model.weekdayMask poniżej wymusza tylko zależność
+                // reaktywną, wynik liczy C++.
+                readonly property int endDay: {
+                    model.weekdayMask
+                    return TimelineViewModel.queueModel.scheduleEndDayAt(index)
                 }
-                readonly property int endDay: getEndDay(model.weekdayMask)
 
                 x: endDay * root.pxPerDay - width / 2
                 z: 10
