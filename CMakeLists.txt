@@ -28,15 +28,18 @@ qt_add_executable(tapt-wallpaper
 qt_add_qml_module(tapt-wallpaper
     URI "org.kde.taptwallpaper"
     VERSION 1.0
-    QML_FILES qml/Main.qml
-    QML_FILES qml/Gallery.qml
-    QML_FILES qml/GalleryGrid.qml
-    QML_FILES qml/DetailView.qml
-    QML_FILES qml/TimelinePanel.qml
-    QML_FILES qml/PreviewImage.qml
-    QML_FILES qml/DayOfWeekTrack.qml
-    QML_FILES qml/SimpleQueueList.qml
-    QML_FILES qml/MonitorPicker.qml
+    QML_FILES
+      qml/Main.qml
+      qml/DetailView.qml
+      qml/MonitorPicker.qml
+      qml/common/OrderModeSelector.qml
+      qml/common/PreviewImage.qml
+      qml/gallery/Gallery.qml
+      qml/gallery/GalleryGrid.qml
+      qml/timeline/DayOfWeekTrack.qml
+      qml/timeline/ScheduleTrack.qml
+      qml/timeline/SimpleQueueList.qml
+      qml/timeline/TimelinePanel.qml
 
     SOURCES
         src/models/imageItem.h
@@ -47,10 +50,12 @@ qt_add_qml_module(tapt-wallpaper
         src/models/monitorplayliststate.h
         src/models/queuemodel.h           src/models/queuemodel.cpp
         src/models/playlistenums.h
+
         src/services/galleryservice.h       src/services/galleryservice.cpp
         src/services/asyncimageprovider.h
         src/services/lutimageprovider.h
         src/services/lutservice.h           src/services/lutservice.cpp
+
         src/viewmodels/galleryviewmodel.h   src/viewmodels/galleryviewmodel.cpp
         src/viewmodels/detailviewmodel.h    src/viewmodels/detailviewmodel.cpp
         src/viewmodels/timelineviewmodel.h  src/viewmodels/timelineviewmodel.cpp
