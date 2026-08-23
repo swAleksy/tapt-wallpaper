@@ -12,6 +12,12 @@
 class MonitorPlaylistState : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(PlaylistEnums::Mode currentMode READ currentMode WRITE setCurrentMode NOTIFY currentModeChanged)
+    Q_PROPERTY(PlaylistEnums::OrderMode loginOrderMode READ loginOrderMode WRITE setLoginOrderMode NOTIFY loginOrderModeChanged)
+    Q_PROPERTY(PlaylistEnums::OrderMode timerOrderMode READ timerOrderMode WRITE setTimerOrderMode NOTIFY timerOrderModeChanged)
+    Q_PROPERTY(int timerIntervalValue READ timerIntervalValue WRITE setTimerIntervalValue NOTIFY timerIntervalValueChanged)
+    Q_PROPERTY(PlaylistEnums::IntervalUnit timerIntervalUnit READ timerIntervalUnit WRITE setTimerIntervalUnit NOTIFY timerIntervalUnitChanged)
+
 public:
     explicit MonitorPlaylistState(QObject* parent = nullptr)
         : QObject(parent)
