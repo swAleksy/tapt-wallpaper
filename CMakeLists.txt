@@ -32,6 +32,7 @@ qt_add_qml_module(tapt-wallpaper
       qml/Main.qml
       qml/DetailView.qml
       qml/MonitorPicker.qml
+      qml/PlaylistItemRenderer.qml
       qml/common/OrderModeSelector.qml
       qml/common/PreviewImage.qml
       qml/gallery/Gallery.qml

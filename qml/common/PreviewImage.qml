@@ -26,28 +26,10 @@ import QtQuick.Effects
 //    sourceSize : size
 //    status     : int (readonly, przekazywane z wewnętrznego Image)
 //
-// Uwaga API: komponent celowo przyjmuje gotowe lutPath/lutSize zamiast
-// filterIndex + referencji do LutFiltersListModel — nie musi nic wiedzieć
-// o "indeksie w liście filtrów", co jest pojęciem specyficznym dla UI
-// DetailView. Rozwiązanie indeks → (lutPath, lutSize) zostaje po stronie
-// wywołującego (DetailView), a TimelinePanel może po prostu podać lutPath
-// zapisany bezpośrednio w EditState/QueueModel.
-//
-// Wydajność:
-//   • Gdy edycja jest "tożsamościowa" (hue=0, brightness=0, saturation=0,
-//     brak lutPath), pomijamy wizualnie cały łańcuch efektów i pokazujemy
-//     zwykły Image. Odwrócenie (flipped) samo w sobie NIE wymaga łańcucha
-//     efektów — obsługuje je Image.mirror.
-//   • ShaderEffectSource działa z domyślnym live: true. Wbrew powszechnemu
-//     przekonaniu, QSGLayer z live: true re-renderuje się tylko wtedy, gdy
-//     poddrzewo źródła jest "dirty" (zmiana właściwości, geometrii, wgranie
-//     obrazu). Zapewnia to poprawne działanie przy delegatach tworzonych
-//     asynchronicznie (np. w StackLayout / ListView / TimelinePanel) bez
-//     żadnego dodatkowego kosztu wydajnościowego na statycznych klatkach.
 Item {
     id: root
 
-    property url source: ""
+    property string source: ""
     property int fillMode: Image.PreserveAspectFit
     property real brightness: 0.0
     property real saturation: 0.0
@@ -59,12 +41,15 @@ Item {
     property size sourceSize: Qt.size(0, 0)
 
     readonly property int status: baseImage.status
+    readonly property int lutStatus: lutImg.status
+
+    readonly property bool isError: root.status === Image.Error
 
     // Czy trzeba w ogóle uruchamiać łańcuch efektów GPU.
-    readonly property bool needsEffects: hue !== 0.0 || brightness !== 0.0 || saturation !== 0.0 || lutPath.length > 0
+    readonly property bool needsEffects: !isError && (hue !== 0.0 || brightness !== 0.0 || saturation !== 0.0 || lutPath.length > 0)
 
-    readonly property url resolvedSource: {
-        var s = source.toString();
+    readonly property string resolvedSource: {
+        var s = source;
         if (s.length === 0)
             return "";
         return (s.indexOf("://") !== -1) ? s : "image://taptimage/" + encodeURIComponent(s);
@@ -80,13 +65,10 @@ Item {
         mipmap: true
         cache: root.cache
 
-        // Gdy nie trzeba żadnych korekt, ten Image jest wyświetlany wprost —
-        // reszta łańcucha poniżej zostaje bez efektu wizualnego i bez pracy.
-        visible: !root.needsEffects
+        // Wyświetlamy bazowy obraz tylko wtedy, gdy nie używamy efektów
+        // I JEDNOCZEŚNIE nie ma błędu (aby nie pokazywać "zepsutej" ikonki systemowej)
+        visible: !root.needsEffects && !root.isError
         sourceSize: (root.sourceSize.width > 0 && root.sourceSize.height > 0) ? root.sourceSize : undefined
-
-        // Usunięto ręczne wywołania `effectSource.scheduleUpdate()`
-        // Silnik sam wie o zmianie statusu/rozmiaru i przebuduje węzeł.
     }
 
     MultiEffect {
@@ -99,36 +81,50 @@ Item {
     }
 
     ShaderEffectSource {
-            id: effectSource
-            sourceItem: colorEffect
-            hideSource: true
-            mipmap: true
+        id: effectSource
+        sourceItem: colorEffect
+        hideSource: true
+        mipmap: true
 
-            // Zamiast sztywnego true, uaktywniamy "live" tylko gdy efekty są włączone.
-            live: root.needsEffects
+        // Zamiast sztywnego true, uaktywniamy "live" tylko gdy efekty są włączone.
+        live: root.needsEffects
+    }
 
-            // KRYTYCZNE: USUNIĘTO `visible: false`!
-            // Jeśli dodasz tu visible: false, Scene Graph wyrzuci ten element
-            // z drzewa renderowania i przestanie generować jakąkolwiek teksturę!
+    ShaderEffect {
+        anchors.fill: parent
+        visible: root.needsEffects
+        property variant sourceImage: effectSource
+        property variant lutTexture: lutImg
+
+        property real lutSize: lutImg.status === Image.Ready ? lutImg.sourceSize.height : root.lutSize
+        property real filterMix: root.lutPath.length > 0 ? 1.0 : 0.0
+        property real hue: root.hue
+        fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
+
+        Image {
+            id: lutImg
+            visible: false
+            asynchronous: true
+            source: root.lutPath.length > 0 ? "image://lut/" + encodeURIComponent(root.lutPath) : ""
         }
+    }
 
-        ShaderEffect {
-            anchors.fill: parent
-            visible: root.needsEffects
-            property variant sourceImage: effectSource
-            property variant lutTexture: lutImg
-            // realny rozmiar sześcianu = wysokość wczytanej tekstury LUT,
-            // niezależnie od tego, co (jeśli cokolwiek) przekazał wywołujący
-            property real lutSize: lutImg.status === Image.Ready ? lutImg.sourceSize.height : root.lutSize
-            property real filterMix: root.lutPath.length > 0 ? 1.0 : 0.0
-            property real hue: root.hue
-            fragmentShader: "qrc:/shaders/lut_filters.frag.qsb"
+    Rectangle {
+        id: errorOverlay
+        anchors.fill: parent
+        color: "#3B0E0F"
+        visible: root.isError
 
-            Image {
-                id: lutImg
-                visible: false
-                asynchronous: true
-                source: root.lutPath.length > 0 ? "image://lut/" + encodeURIComponent(root.lutPath) : ""
-            }
+        Text {
+            anchors.centerIn: parent
+            text: qsTr("No media found")
+            color: "#9E2828"
+
+            // Skaluje się razem z rozmiarem okna/elementu.
+            font.pixelSize: Math.max(8, Math.min(parent.width, parent.height) * 0.08)
+
+            font.bold: true
+            horizontalAlignment: Text.AlignHCenter
         }
+    }
 }

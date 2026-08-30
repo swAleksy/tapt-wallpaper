@@ -16,6 +16,97 @@ Item {
 
     readonly property int playlistCount: TimelineViewModel.queueModel.count
 
+    //  RENDEROWANIE FINALNYCH TAPET (odpalane z "Save playlist")
+    property bool exporting: false
+    property int _exportPending: 0
+    property var _exportMonitors: []
+
+    function _outputDirectory() {
+        const jsonPath = TimelineViewModel.playlistFilePath();
+        return jsonPath.substring(0, jsonPath.lastIndexOf("/"));
+    }
+
+    // Rozdzielczość dopasowana do KONKRETNEGO monitora (nie tylko tego
+    // aktualnie wybranego w panelu) — dostosuj do HiDPI/Wayland, jeśli trzeba.
+    function _exportSizeFor(monitorId) {
+        for (const s of Qt.application.screens) {
+            if (s.name === monitorId)
+                return Qt.size(s.width, s.height);
+        }
+        return Qt.size(1920, 1080);
+    }
+
+    function startExport() {
+        if (exporting)
+            return;
+
+        if (!TimelineViewModel.ensurePlaylistDirectory()) {
+            console.warn("Nie udało się utworzyć katalogu playlisty:", TimelineViewModel.playlistFilePath());
+            return;
+        }
+
+        _exportMonitors = TimelineViewModel.allMonitorQueues();
+
+        let total = 0;
+        for (const entry of _exportMonitors)
+            total += entry.queueModel.count;
+
+        if (total === 0) {
+            _finishExport();
+            return;
+        }
+
+        exporting = true;
+        _exportPending = total;
+        exportMonitors.model = _exportMonitors;
+    }
+
+    function _onItemRendered(id, path) {
+        TimelineViewModel.setItemExportedPath(id, path);
+        _exportItemDone();
+    }
+
+    function _onItemFailed(id, reason) {
+        console.warn("Nie udało się wyrenderować tapety", id, ":", reason);
+        _exportItemDone();
+    }
+
+    function _exportItemDone() {
+        _exportPending -= 1;
+        if (_exportPending <= 0)
+            _finishExport();
+    }
+
+    function _finishExport() {
+        exporting = false;
+        exportMonitors.model = null; // zwalnia delegaty i ich tekstury GPU
+        _exportMonitors = [];
+
+        const path = TimelineViewModel.playlistFilePath();
+        if (!TimelineViewModel.exportPlaylist(path))
+            console.warn("Nie udało się zapisać playlisty:", path);
+    }
+
+    Repeater {
+        id: exportMonitors
+        model: null // lista {monitorId, queueModel} — ustawiana tylko na czas eksportu
+        delegate: Repeater {
+            id: monitorGroup
+            // Przechwytujemy modelData Z ZEWNĘTRZNEGO Repeatera pod inną
+            // nazwą, zanim przesłoni je własny "modelData" wewnętrznego
+            // Repeatera (ten działa już na wierszach queueModelu danego
+            // monitora).
+            property var entry: modelData
+            model: entry.queueModel
+            delegate: PlaylistItemRenderer {
+                outputDir: rootTimeline._outputDirectory()
+                renderSize: rootTimeline._exportSizeFor(monitorGroup.entry.monitorId)
+                onRendered: (id, path) => rootTimeline._onItemRendered(id, path)
+                onFailed: (id, reason) => rootTimeline._onItemFailed(id, reason)
+            }
+        }
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     //  DOLNY PASEK NARZĘDZIOWY
     // ════════════════════════════════════════════════════════════════════════
@@ -49,14 +140,11 @@ Item {
             icon.name: "dialog-cancel"
         }
         Button {
-            text: qsTr("Save playlist")
+            text: rootTimeline.exporting ? qsTr("Rendering…") : qsTr("Save playlist")
             highlighted: true
             icon.name: "document-save"
-            onClicked: {
-                const path = StandardPaths.writableLocation(StandardPaths.AppDataLocation) + "/playlist.json"
-                if (!TimelineViewModel.exportPlaylist(path))
-                    console.warn("Nie udało się zapisać playlisty:", path)
-            }
+            enabled: !rootTimeline.exporting
+            onClicked: rootTimeline.startExport()
         }
 
         Item { width: 4 }
@@ -130,7 +218,9 @@ Item {
                     Label { text: qsTr("When logging in settings...") }
                     OrderModeSelector {
                         value: TimelineViewModel.monitorState.loginOrderMode
-                        onValueModified: TimelineViewModel.monitorState.loginOrderMode = value
+                        onValueModified: (value) => {
+                            TimelineViewModel.monitorState.loginOrderMode = value
+                        }
                     }
                     Item { Layout.fillHeight: true }
                 }
@@ -139,7 +229,9 @@ Item {
                     Label { text: qsTr("On a timer settings...") }
                     OrderModeSelector {
                         value: TimelineViewModel.monitorState.timerOrderMode
-                        onValueModified: TimelineViewModel.monitorState.timerOrderMode = value
+                        onValueModified: (value) => {
+                            TimelineViewModel.monitorState.timerOrderMode = value
+                        }
                     }
                     RowLayout {
                         Label { text: qsTr("Change every:") }

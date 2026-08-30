@@ -44,6 +44,16 @@ Item {
     property bool previewFlipped: DetailViewModel.flipped
     property int previewFilterIndex: DetailViewModel.activeFilterIndex
 
+    // Odczytywanie błędu obrazu (korzystamy z właściwości 'status' z PreviewImage)
+    readonly property bool hasImageError: thumbBase.status === Image.Error
+
+    // Kiedy pojawia się błąd, upewniamy się, że zwijamy panel z filtrami
+    onHasImageErrorChanged: {
+        if (hasImageError) {
+            filtersHeader.sectionExpanded = false;
+        }
+    }
+
     // PreviewImage nie zna pojęcia "indeksu w liście filtrów" (to szczegół UI
     // tego widoku) — przyjmuje gotowe lutPath/lutSize, więc rozwiązanie
     // indeksu robimy tutaj, przy pomocy tego samego lutFiltersListModel.
@@ -215,13 +225,13 @@ Item {
 
                 radius: 7
                 color: "#08090c"
-                //layer.enabled: true
                 clip: true
 
                 MouseArea {
                     id: thumbHoverArea
                     anchors.fill: parent
                     hoverEnabled: true
+                    enabled: !detailRoot.hasImageError
                     onClicked: previewPopup.open()
                 }
 
@@ -240,7 +250,7 @@ Item {
 
                 Label {
                     anchors.centerIn: parent
-                    visible: thumbBase.status !== Image.Ready
+                    visible: thumbBase.status !== Image.Ready && thumbBase.status !== Image.Error
                     text: thumbBase.status === Image.Loading ? qsTr("Loading...") : qsTr("No image")
                     color: Kirigami.Theme.disabledTextColor
                     font.pointSize: 9
@@ -254,6 +264,7 @@ Item {
                     border.width: 1
                 }
 
+                // Ikonka lupy
                 Item {
                     anchors {
                         top: parent.top
@@ -262,6 +273,7 @@ Item {
                     }
                     width: 28
                     height: 28
+                    visible: !detailRoot.hasImageError // Ukrywa ikonkę lupki jeśli jest błąd
                     opacity: thumbHoverArea.containsMouse ? 0.92 : 0.0
                     Behavior on opacity {
                         NumberAnimation {
@@ -326,6 +338,7 @@ Item {
                 font.letterSpacing: 1.2
                 font.bold: true
                 color: Kirigami.Theme.disabledTextColor
+                opacity: detailRoot.hasImageError ? 0.5 : 1.0 // Zgaszenie tekstu w przypadku błędu
             }
 
             ColumnLayout {
@@ -334,6 +347,9 @@ Item {
                 Layout.rightMargin: 14
                 Layout.bottomMargin: 4
                 spacing: 1
+
+                enabled: !detailRoot.hasImageError
+                opacity: enabled ? 1.0 : 0.4
 
                 // Barwa
                 RowLayout {
@@ -426,6 +442,7 @@ Item {
                 }
             }
 
+            // CHECK BOX
             CheckBox {
                 Layout.leftMargin: 10
                 Layout.topMargin: 4
@@ -433,6 +450,9 @@ Item {
                 text: qsTr("Flip horizontally")
                 font.pointSize: 9
                 checked: previewFlipped
+
+                enabled: !detailRoot.hasImageError
+
                 onToggled: {
                     previewFlipped = checked;
                     autoApplyTimer.restart();
@@ -454,6 +474,9 @@ Item {
                 Layout.bottomMargin: 6
                 implicitHeight: headerRow.implicitHeight
                 property bool sectionExpanded: false
+
+                enabled: !detailRoot.hasImageError
+                opacity: enabled ? 1.0 : 0.4
 
                 RowLayout {
                     id: headerRow
@@ -510,7 +533,6 @@ Item {
                 }
             }
 
-            // Rozwijana lista
             Rectangle {
                 Layout.fillWidth: true
                 Layout.leftMargin: 12
@@ -521,6 +543,8 @@ Item {
                 border.width: 1
                 radius: 6
                 clip: true
+
+                enabled: !detailRoot.hasImageError
 
                 visible: Layout.preferredHeight > 0
                 Layout.preferredHeight: filtersHeader.sectionExpanded ? Math.min(filterList.contentHeight + 8, 220) : 0
@@ -580,6 +604,9 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Restore")
                     icon.name: "edit-undo-symbolic"
+
+                    enabled: !detailRoot.hasImageError // WYŁĄCZENIE
+
                     onClicked: {
                         autoApplyTimer.stop();
                         DetailViewModel.revertChanges();
@@ -594,6 +621,9 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("Set as wallpaper")
                     icon.name: "preferences-desktop-wallpaper-symbolic"
+
+                    enabled: !detailRoot.hasImageError // WYŁĄCZENIE
+
                     onClicked: {
                         detailRoot.flushPendingApply();
                         DetailViewModel.setAsWallpaper();
@@ -610,7 +640,8 @@ Item {
                         TimelineViewModel.currentMode === PlaylistEnums.Mode.DayOfWeek
                         && TimelineViewModel.queueModel.count >= TimelineViewModel.maxDayOfWeekItems
 
-                    enabled: !dayOfWeekFull
+                    enabled: !dayOfWeekFull && !detailRoot.hasImageError
+
                     onClicked: {
                         detailRoot.flushPendingApply();
                         DetailViewModel.addToPlaylist();

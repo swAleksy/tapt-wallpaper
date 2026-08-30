@@ -74,6 +74,29 @@ inline QString toString(IntervalUnit unit)
     return QStringLiteral("minutes");
 }
 
+inline bool fromString(const QString& s, Mode& out)
+{
+    if (s == QStringLiteral("timeOfDay"))     { out = Mode::TimeOfDay; return true; }
+    if (s == QStringLiteral("whenLoggingIn")) { out = Mode::WhenLoggingIn; return true; }
+    if (s == QStringLiteral("onATimer"))      { out = Mode::OnATimer; return true; }
+    if (s == QStringLiteral("dayOfWeek"))     { out = Mode::DayOfWeek; return true; }
+    return false;
+}
+
+inline bool fromString(const QString& s, OrderMode& out)
+{
+    if (s == QStringLiteral("random"))  { out = OrderMode::Random; return true; }
+    if (s == QStringLiteral("ordered")) { out = OrderMode::Ordered; return true; }
+    return false;
+}
+
+inline bool fromString(const QString& s, IntervalUnit& out)
+{
+    if (s == QStringLiteral("minutes")) { out = IntervalUnit::Minutes; return true; }
+    if (s == QStringLiteral("hours"))   { out = IntervalUnit::Hours; return true; }
+    return false;
+}
+
 }
 
 #endif // PLAYLISTENUMS_H

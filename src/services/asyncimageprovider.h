@@ -15,6 +15,7 @@ class AsyncImageResponse : public QQuickImageResponse {
     Q_OBJECT
 public:
     QImage m_image;
+    QString m_errorString;
     QFutureWatcher<QImage> m_watcher;
     std::shared_ptr<std::atomic<bool>> m_abortFlag;
 
@@ -61,6 +62,11 @@ public:
         m_abortFlag->store(true);
     }
 
+    QString errorString() const override
+    {
+        return m_errorString;
+    }
+
     QQuickTextureFactory* textureFactory() const override
     {
         return QQuickTextureFactory::textureFactoryForImage(m_image);
@@ -70,6 +76,8 @@ private slots:
     void handleFinished()
     {
         m_image = m_watcher.result();
+        if (m_image.isNull())
+            m_errorString = QStringLiteral("nie udało się wczytać obrazu");  // NOWE
         emit finished();
     }
 };
