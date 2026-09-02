@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QApplication app(argc, argv);
 
-    app.setOrganizationName("KDE");
+    app.setOrganizationName("swaleksy");
     app.setApplicationName("taptwallpaper");
 
     QQmlApplicationEngine engine;

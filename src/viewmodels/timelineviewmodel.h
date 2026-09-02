@@ -87,7 +87,7 @@ public:
     Q_INVOKABLE void distributeWeekdaysEvenly();
     Q_INVOKABLE void moveWeekdayDivider(int dividerIndex, qreal proposedBoundaryDay);
 
-    Q_INVOKABLE QString playlistFilePath() const;
+    // Q_INVOKABLE QString playlistFilePath() const;
 
 signals:
     void itemRequestedForEditing(

@@ -2,7 +2,7 @@
 #define PLAYLISTENUMS_H
 #include <QObject>
 #include <QString>
-#include <qqml.h>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 // Enumy stanu playlisty, współdzielone przez TimelineViewModel i
 // MonitorPlaylistState — zamiast surowych intów (0/1/2/3)
