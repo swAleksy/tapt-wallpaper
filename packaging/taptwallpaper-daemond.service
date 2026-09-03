@@ -1,11 +1,5 @@
 [Unit]
 Description=Tapt Wallpaper Daemon
-Description[pl]=Demon tapet Tapt Wallpaper
-# graphical-session.target is the standard target for user services that
-# need a running display server. After= ensures the Wayland/X11 session
-# and its environment (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR, dbus
-# session bus) are ready before the daemon starts — QGuiApplication needs
-# them to enumerate screens.
 After=graphical-session.target
 PartOf=graphical-session.target
 
@@ -14,6 +8,10 @@ PartOf=graphical-session.target
 ExecStart=%h/.local/bin/taptwallpaper-daemond
 Restart=on-failure
 RestartSec=5
+# The daemon doesn't use xdg-desktop-portal features — it talks to
+# plasmashell directly via D-Bus. Suppress the harmless "Failed to
+# register with host portal" warning at startup.
+Environment=QT_LOGGING_RULES=qt.qpa.portal=false
 
 [Install]
 WantedBy=graphical-session.target

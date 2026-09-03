@@ -49,6 +49,9 @@ private:
     void saveLoginState() const;
 
     QString m_playlistPath;
+    QDateTime m_lastPlaylistMod;   // last modification time of playlist.json —
+                                   // used to skip spurious directory watcher
+                                   // triggers (PNG renders, login_state.json)
 
     QFileSystemWatcher m_watcher;
     QTimer m_reloadDebounce;

@@ -126,6 +126,21 @@ void WallpaperDaemon::onPlaylistDirChanged(const QString&)
 
 void WallpaperDaemon::reloadPlaylist()
 {
+    // The directory watcher fires for ANY file change in the playlist
+    // directory — PNG renders, login_state.json writes, etc. — not just
+    // playlist.json. Skip the reload if playlist.json hasn't actually
+    // changed, so we don't apply wallpapers from a stale intermediate
+    // state (e.g. PNGs deleted by cleanExportDirectory but not yet
+    // re-rendered).
+    const QFileInfo fi(m_playlistPath);
+    if (!fi.exists()) {
+        m_lastPlaylistMod = QDateTime();
+        return;
+    }
+    if (fi.lastModified() == m_lastPlaylistMod)
+        return;
+    m_lastPlaylistMod = fi.lastModified();
+
     if (!PlaylistIO::importPlaylist(m_playlistPath, m_monitorStates, this)) {
         qWarning() << "WallpaperDaemon: failed to load playlist" << m_playlistPath;
         return; // normalne przy pierwszym uruchomieniu, zanim GUI cokolwiek zapisze
@@ -224,10 +239,6 @@ void WallpaperDaemon::applyWallpaper(const QString& monitorId, const QString& im
         return;
     }
 
-    // Update immediately so a tick before the dbus call returns doesn't
-    // re-apply the same image.
-    m_currentlyShown[monitorId] = imagePath;
-
     // plasma-apply-wallpaperimage has no --screen option in Plasma 6, so
     // we call the plasmashell dbus interface directly. This is a session-
     // bus call (local, fast), so the brief synchronous block is fine for
@@ -245,10 +256,17 @@ void WallpaperDaemon::applyWallpaper(const QString& monitorId, const QString& im
         << params
         << static_cast<uint>(screenIndex);
 
+    qDebug() << "WallpaperDaemon: applying wallpaper to" << monitorId
+             << "screen" << screenIndex << ":" << imagePath;
+
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
-    if (reply.type() == QDBusMessage::ErrorMessage)
+    if (reply.type() == QDBusMessage::ErrorMessage) {
         qWarning() << "WallpaperDaemon: setWallpaper failed for monitor" << monitorId
                    << ":" << reply.errorMessage();
+        return;  // don't update m_currentlyShown — retry on next tick
+    }
+
+    m_currentlyShown[monitorId] = imagePath;
 }
 
 // MARK: - WhenLoggingIn/Ordered persistent index
