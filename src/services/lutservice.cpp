@@ -18,7 +18,7 @@ std::optional<LutData> LutService::load(const QString& path)
         if (line.startsWith('#') || line.isEmpty())
             continue;
         if (line.startsWith("LUT_3D_SIZE")) {
-            lut.size = line.split(' ').last().toInt();
+            lut.size = line.simplified().split(' ', Qt::SkipEmptyParts).last().toInt();
             lut.table.reserve(lut.size * lut.size * lut.size);
             continue;
         }
@@ -54,6 +54,8 @@ QImage LutService::lutToTex(const LutData& lut)
     for (int z = 0; z < dim; ++z) {
         for (int y = 0; y < dim; ++y) {
             for (int x = 0; x < dim; ++x) {
+                if (index >= lut.table.size())
+                    break;
                 const QVector3D& color = lut.table[index++];
 
                 int r = static_cast<int>(qBound(0.0f, color.x(), 1.0f) * 255.0f);

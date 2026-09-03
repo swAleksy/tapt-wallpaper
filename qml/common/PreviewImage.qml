@@ -93,8 +93,8 @@ Item {
     ShaderEffect {
         anchors.fill: parent
         visible: root.needsEffects
-        property variant sourceImage: effectSource
-        property variant lutTexture: lutImg
+        property var sourceImage: effectSource
+        property var lutTexture: lutImg
 
         property real lutSize: lutImg.status === Image.Ready ? lutImg.sourceSize.height : root.lutSize
         property real filterMix: root.lutPath.length > 0 ? 1.0 : 0.0

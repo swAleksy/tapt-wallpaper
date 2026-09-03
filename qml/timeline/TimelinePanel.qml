@@ -139,10 +139,10 @@ Item {
 
         Item { Layout.fillWidth: true }
 
-        Button {
-            text: qsTr("Cancel")
-            icon.name: "dialog-cancel"
-        }
+        // Button {
+        //     text: qsTr("Cancel")
+        //     icon.name: "dialog-cancel"
+        // }
         Button {
             text: rootTimeline.exporting ? qsTr("Rendering…") : qsTr("Save playlist")
             highlighted: true

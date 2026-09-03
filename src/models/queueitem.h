@@ -23,7 +23,10 @@ struct QueueItem {
     QString   sourcePath;    // ścieżka do ORYGINALNEGO, niezmienionego pliku
     QString   name;
     EditState edit;
-    QString   exportedPath = "//ph_path";  // PLACEHOLDER
+    // Empty = not yet rendered. The daemon's resolvedPath() checks isEmpty()
+    // and falls back to sourcePath. Do NOT use a magic string here — any
+    // non-empty value is treated as a real path.
+    QString   exportedPath;
 
     // Celowo NIEZALEŻNE od pozycji w kolejce (m_items), bo ta sama kolejka
     // jest współdzielona przez wszystkie tryby

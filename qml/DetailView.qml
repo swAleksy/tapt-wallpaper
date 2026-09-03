@@ -25,7 +25,7 @@ import org.kde.taptwallpaper
 //
 //  Invokables
 //    applyChanges(hue, brightness, saturation, flipped, filterIndex)
-//      — wołane automatycznie z debounce 500 ms po zmianie suwaka/filtra/
+//      — wołane automatycznie z debounce 100 ms po zmianie suwaka/filtra/
 //        odbicia (patrz autoApplyTimer poniżej); przycisk "Zastosuj" tylko
 //        pomija to opóźnienie.
 //    revertChanges()
@@ -616,19 +616,19 @@ Item {
                     ToolTip.delay: 600
                 }
 
-                Button {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    text: qsTr("Set as wallpaper")
-                    icon.name: "preferences-desktop-wallpaper-symbolic"
-
-                    enabled: !detailRoot.hasImageError // WYŁĄCZENIE
-
-                    onClicked: {
-                        detailRoot.flushPendingApply();
-                        DetailViewModel.setAsWallpaper();
-                    }
-                }
+                // Button {
+                //     Layout.columnSpan: 2
+                //     Layout.fillWidth: true
+                //     text: qsTr("Set as wallpaper")
+                //     icon.name: "preferences-desktop-wallpaper-symbolic"
+                //
+                //     enabled: !detailRoot.hasImageError
+                //
+                //     onClicked: {
+                //         detailRoot.flushPendingApply();
+                //         DetailViewModel.setAsWallpaper();
+                //     }
+                // }
 
                 Button {
                     Layout.columnSpan: 2

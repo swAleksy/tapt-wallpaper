@@ -38,7 +38,6 @@ QJsonObject serializeMonitorState(const MonitorPlaylistState *state)
         const QModelIndex index = model->index(i);
         QJsonObject item;
         item["id"] = model->data(index, QueueModel::IdRole).toString();
-        item["order"] = i;
         item["sourcePath"] = model->data(index, QueueModel::SourcePathRole).toString();
         item["exportedPath"] = model->data(index, QueueModel::ExportedPathRole).toString();
         item["name"] = model->data(index, QueueModel::NameRole).toString();

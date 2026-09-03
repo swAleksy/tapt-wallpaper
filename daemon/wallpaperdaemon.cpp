@@ -30,8 +30,7 @@ constexpr int kReloadDebounceMs = 300;
 QString resolvedPath(const QueueModel* model, const QModelIndex& idx)
 {
     const QString exportedPath = model->data(idx, QueueModel::ExportedPathRole).toString();
-    if (!exportedPath.isEmpty() && exportedPath != QStringLiteral("//ph_path")
-        && QFileInfo::exists(exportedPath))
+    if (!exportedPath.isEmpty() && QFileInfo::exists(exportedPath))
         return exportedPath;
     return model->data(idx, QueueModel::SourcePathRole).toString();
 }
@@ -96,7 +95,11 @@ WallpaperDaemon::WallpaperDaemon(QObject* parent)
     // nie szkodzi: reloadPlaylist() nie rusza m_loginIndex.
     loadLoginState();
 
-    m_watcher.addPath(QFileInfo(m_playlistPath).absolutePath());
+    // Ensure the directory exists before watching — addPath fails silently
+    // if it doesn't, leaving the daemon blind to future saves (first run).
+    const QString watchDir = QFileInfo(m_playlistPath).absolutePath();
+    QDir().mkpath(watchDir);
+    m_watcher.addPath(watchDir);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged,
             this, &WallpaperDaemon::onPlaylistDirChanged);
 

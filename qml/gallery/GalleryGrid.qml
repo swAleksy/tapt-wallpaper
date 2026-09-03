@@ -46,7 +46,7 @@ Item {
 
         readonly property int targetCellSize: Math.max(130, Math.min(280, Math.round(Screen.width * 0.10)))
         readonly property int columns: Math.max(1, Math.floor((stableWidth - scrollBarWidth) / targetCellSize))
-        readonly property int actualCellSize: Math.floor((stableWidth - scrollBarWidth) / columns)
+        readonly property int actualCellSize: Math.max(1, Math.floor((stableWidth - scrollBarWidth) / columns))
 
         cellWidth: actualCellSize
         cellHeight: actualCellSize

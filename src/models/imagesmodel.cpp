@@ -10,7 +10,7 @@ int ImagesModel::rowCount(const QModelIndex& parent) const
 // Ta funkcja zwraca konkretne pole dla danego wiersza (wywoływana przez QML)
 QVariant ImagesModel::data(const QModelIndex& index, int role) const
 {
-    if (!index.isValid() || index.row() >= m_images.count())
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_images.count())
         return QVariant();
 
     const ImageItem& item = m_images[index.row()];

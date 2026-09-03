@@ -6,7 +6,8 @@
 QList<ImageItem> GalleryService::scanFolder(const QString& folderPath) const
 {
     QList<ImageItem> results;
-    QStringList filters = { "*.jpg", "*.jpeg", "*.png" };
+    QStringList filters = { "*.jpg", "*.jpeg", "*.png",
+                            "*.JPG", "*.JPEG", "*.PNG" };
     QDirIterator it(folderPath, filters, QDir::Files | QDir::NoDotAndDotDot);
 
     while (it.hasNext()) {
