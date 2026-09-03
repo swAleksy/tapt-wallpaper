@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tapt Wallpaper
+Comment=Schedule wallpapers per monitor for KDE Plasma
+Comment[pl]=Harmonogramuj tapety osobno dla każdego monitora w KDE Plasma
+Exec=tapt-wallpaper
+Icon=taptwallpaper
+Categories=Qt;KDE;Utility;DesktopSettings;
+Keywords=wallpaper;background;desktop;monitor;schedule;
+Terminal=false
+SingleMainWindow=true

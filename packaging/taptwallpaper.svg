@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="bezel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2a35"/>
+      <stop offset="100%" stop-color="#16161c"/>
+    </linearGradient>
+
+    <clipPath id="screenClip">
+      <rect x="7" y="9" width="34" height="23" rx="1.5"/>
+    </clipPath>
+  </defs>
+
+  <!-- Monitor bezel -->
+  <rect x="5" y="7" width="38" height="27" rx="3" fill="url(#bezel)"/>
+
+  <!-- Screen: purple and blue split diagonally -->
+  <g clip-path="url(#screenClip)">
+    <!-- Purple -->
+    <polygon
+      points="7,9 41,9 7,32"
+      fill="#8b5cf6"/>
+
+    <!-- Blue -->
+    <polygon
+      points="41,9 41,32 7,32"
+      fill="#1ca0d8"/>
+  </g>
+
+  <!-- Stand neck -->
+  <rect x="21" y="34" width="6" height="4" fill="#16161c"/>
+
+  <!-- Stand base -->
+  <rect x="16" y="37" width="16" height="3" rx="1.5" fill="#16161c"/>
+</svg>

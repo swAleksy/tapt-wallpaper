@@ -3,6 +3,7 @@
 #include "services/playlistio.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QScreen>
@@ -165,6 +166,17 @@ bool TimelineViewModel::ensurePlaylistDirectory() const
     return dir.exists() || dir.mkpath(".");
 }
 
+void TimelineViewModel::cleanExportDirectory() const
+{
+    // Deletes all .png files in the playlist directory before a fresh
+    // export. Rendered images are named <uuid>.png; playlist.json and
+    // login_state.json are left untouched.
+    const QDir dir = QFileInfo(PlaylistIO::defaultPlaylistPath()).dir();
+    const QStringList pngs = dir.entryList({QStringLiteral("*.png")}, QDir::Files);
+    for (const QString &name : pngs)
+        QFile::remove(dir.absoluteFilePath(name));
+}
+
 void TimelineViewModel::setItemExportedPath(const QString &id, const QString &path)
 {
     for (auto it = m_monitorStates.constBegin(); it != m_monitorStates.constEnd(); ++it) {
@@ -251,11 +263,10 @@ void TimelineViewModel::moveWeekdayDivider(int dividerIndex, qreal proposedBound
     queueModel()->moveWeekdayDivider(dividerIndex, proposedBoundaryDay);
 }
 
-// QString TimelineViewModel::playlistFilePath() const
-// {
-//     const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-//     return dir + QStringLiteral("/playlist.json");
-// }
+QString TimelineViewModel::playlistFilePath() const
+{
+    return PlaylistIO::defaultPlaylistPath();
+}
 
 // MARK: - Internal helpers
 

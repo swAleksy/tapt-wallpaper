@@ -70,6 +70,7 @@ public:
 
     Q_INVOKABLE void setItemExportedPath(const QString &id, const QString &path);
     Q_INVOKABLE bool ensurePlaylistDirectory() const;
+    Q_INVOKABLE void cleanExportDirectory() const;
     Q_INVOKABLE QVariantList allMonitorQueues() const;
 
 
@@ -87,7 +88,7 @@ public:
     Q_INVOKABLE void distributeWeekdaysEvenly();
     Q_INVOKABLE void moveWeekdayDivider(int dividerIndex, qreal proposedBoundaryDay);
 
-    // Q_INVOKABLE QString playlistFilePath() const;
+    Q_INVOKABLE QString playlistFilePath() const;
 
 signals:
     void itemRequestedForEditing(

@@ -11,7 +11,7 @@ find_package(ECM REQUIRED NO_MODULE)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 
 # Zauważ, że Core jest wymagane, a reszta idzie do głównej aplikacji
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Widgets Concurrent ShaderTools QmlIntegration)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Widgets Concurrent ShaderTools QmlIntegration DBus)
 find_package(KF6 REQUIRED COMPONENTS Kirigami)
 
 include(KDEInstallDirs6)
@@ -117,19 +117,20 @@ target_link_libraries(tapt-wallpaper PRIVATE
 
 qt_generate_foreign_qml_types(taptwallpaper-core tapt-wallpaper)
 
-# # 3. TARGET DAEMON
-# qt_add_executable(taptwallpaper-daemond
-#     daemon/main.cpp
-#     daemon/wallpaperdaemon.h    daemon/wallpaperdaemon.cpp
-#     daemon/wallpaperapplier.h   daemon/wallpaperapplier.cpp
-# )
+# 3. TARGET DAEMON
+qt_add_executable(taptwallpaper-daemond
+    daemon/main.cpp
+    daemon/wallpaperdaemon.h    daemon/wallpaperdaemon.cpp
+    # daemon/wallpaperapplier.h   daemon/wallpaperapplier.cpp
+)
 
-# target_include_directories(taptwallpaper-daemond PRIVATE
-#     ${CMAKE_CURRENT_SOURCE_DIR}/daemon
-# )
+target_include_directories(taptwallpaper-daemond PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/daemon
+)
 
-# target_link_libraries(taptwallpaper-daemond PRIVATE
-#     taptwallpaper-core
-#     Qt6::Core
-#     Qt6::Gui
-# )
+target_link_libraries(taptwallpaper-daemond PRIVATE
+    taptwallpaper-core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::DBus
+)

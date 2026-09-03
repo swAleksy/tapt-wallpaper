@@ -41,6 +41,13 @@ private:
     void applyLoginPick(const QString& monitorId, MonitorPlaylistState* state);
     int screenIndexForMonitor(const QString& monitorId) const;
 
+    // Persists the last-shown index for WhenLoggingIn/Ordered mode across
+    // daemon restarts (i.e. across logins). Stored as a simple JSON file
+    // next to playlist.json: { "eDP-1": 2, "HDMI-A-1": 0 }.
+    QString loginStatePath() const;
+    void loadLoginState();
+    void saveLoginState() const;
+
     QString m_playlistPath;
 
     QFileSystemWatcher m_watcher;
@@ -50,6 +57,7 @@ private:
     QMap<QString, MonitorPlaylistState*> m_monitorStates;
     QMap<QString, QString> m_currentlyShown;       // monitorId -> ostatnio zaaplikowana ścieżka
     QMap<QString, TimerCycleState> m_timerCycle;   // monitorId -> stan cyklu dla OnATimer
+    QMap<QString, int> m_loginIndex;               // monitorId -> last-shown index for WhenLoggingIn/Ordered
 };
 
 #endif // WALLPAPERDAEMON_H

@@ -45,6 +45,10 @@ Item {
             return;
         }
 
+        // Remove old rendered PNGs so stale images from a previous export
+        // don't linger. New renders will write fresh files with current UUIDs.
+        TimelineViewModel.cleanExportDirectory();
+
         _exportMonitors = TimelineViewModel.allMonitorQueues();
 
         let total = 0;

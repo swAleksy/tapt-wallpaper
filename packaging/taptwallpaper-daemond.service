@@ -1,0 +1,19 @@
+[Unit]
+Description=Tapt Wallpaper Daemon
+Description[pl]=Demon tapet Tapt Wallpaper
+# graphical-session.target is the standard target for user services that
+# need a running display server. After= ensures the Wayland/X11 session
+# and its environment (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR, dbus
+# session bus) are ready before the daemon starts — QGuiApplication needs
+# them to enumerate screens.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+# %h expands to the user's home directory in systemd user services.
+ExecStart=%h/.local/bin/taptwallpaper-daemond
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

@@ -5,9 +5,16 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
-#include <QProcess>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusMessage>
+#include <QDBusReply>
 #include <QRandomGenerator>
 #include <QScreen>
 #include <QTime>
@@ -16,30 +23,42 @@ namespace {
 constexpr int kTickIntervalMs = 30 * 1000;
 constexpr int kReloadDebounceMs = 300;
 
-QString pickForTimeOfDay(QueueModel* model, int nowMinutes)
+// Prefer the rendered image (with hue/brightness/saturation/LUT/flip
+// applied by the GUI's PlaylistItemRenderer) over the raw source. Falls
+// back to sourcePath when exportedPath is empty or the file doesn't exist
+// yet (e.g. daemon started before the user ever saved a playlist).
+QString resolvedPath(const QueueModel* model, const QModelIndex& idx)
+{
+    const QString exportedPath = model->data(idx, QueueModel::ExportedPathRole).toString();
+    if (!exportedPath.isEmpty() && exportedPath != QStringLiteral("//ph_path")
+        && QFileInfo::exists(exportedPath))
+        return exportedPath;
+    return model->data(idx, QueueModel::SourcePathRole).toString();
+}
+} // namespace
+
+QString WallpaperDaemon::pickForTimeOfDay(QueueModel* model, int nowMinutes)
 {
     for (int i = 0; i < model->rowCount(); ++i) {
         const QModelIndex idx = model->index(i);
         const int start = model->data(idx, QueueModel::ScheduleStartMinRole).toInt();
         const int end = model->data(idx, QueueModel::ScheduleEndMinRole).toInt();
         if (nowMinutes >= start && nowMinutes < end)
-            return model->data(idx, QueueModel::SourcePathRole).toString();
+            return resolvedPath(model, idx);
     }
     return {};
 }
 
-QString pickForDayOfWeek(QueueModel* model, int today /* 0=pon..6=nd */)
+QString WallpaperDaemon::pickForDayOfWeek(QueueModel* model, int today /* 0=pon..6=nd */)
 {
     for (int i = 0; i < model->rowCount(); ++i) {
         const QModelIndex idx = model->index(i);
         const int mask = model->data(idx, QueueModel::WeekdayMaskRole).toInt();
         if (mask & (1 << today))
-            return model->data(idx, QueueModel::SourcePathRole).toString();
+            return resolvedPath(model, idx);
     }
     return {};
 }
-
-} // namespace
 
 // Metoda klasy - ma dostęp do prywatnego TimerCycleState.
 QString WallpaperDaemon::pickForOnATimer(QueueModel* model, MonitorPlaylistState* state,
@@ -60,7 +79,7 @@ QString WallpaperDaemon::pickForOnATimer(QueueModel* model, MonitorPlaylistState
         cycle.lastAdvance = QDateTime::currentDateTime();
     }
 
-    return model->data(model->index(cycle.currentIndex), QueueModel::SourcePathRole).toString();
+    return resolvedPath(model, model->index(cycle.currentIndex));
 }
 
 WallpaperDaemon::WallpaperDaemon(QObject* parent)
@@ -70,6 +89,12 @@ WallpaperDaemon::WallpaperDaemon(QObject* parent)
     // Pierwsze wczytanie zanim spinamy watcher/timery — inaczej własny
     // start wyglądałby dla siebie samego jak "zmiana z zewnątrz".
     reloadPlaylist();
+
+    // Wczytanie ostatniego indeksu dla WhenLoggingIn/Ordered ZANIM
+    // applyLoginPick() go użyje — plik jest w tym samym katalogu co
+    // playlist.json, więc QFileSystemWatcher go też zobaczy, ale to
+    // nie szkodzi: reloadPlaylist() nie rusza m_loginIndex.
+    loadLoginState();
 
     m_watcher.addPath(QFileInfo(m_playlistPath).absolutePath());
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged,
@@ -156,11 +181,21 @@ void WallpaperDaemon::applyLoginPick(const QString& monitorId, MonitorPlaylistSt
     if (count == 0)
         return;
 
-    const int index = state->loginOrderMode() == PlaylistEnums::OrderMode::Random
-        ? QRandomGenerator::global()->bounded(count)
-        : 0;
+    int index;
+    if (state->loginOrderMode() == PlaylistEnums::OrderMode::Random) {
+        index = QRandomGenerator::global()->bounded(count);
+    } else {
+        // Ordered: advance from the last-shown index (persisted across
+        // daemon restarts in login_state.json). First ever login starts
+        // at 0, then cycles 1, 2, ... count-1, 0, 1, ...
+        const int last = m_loginIndex.value(monitorId, -1);
+        index = (last + 1) % count;
+    }
 
-    applyWallpaper(monitorId, model->data(model->index(index), QueueModel::SourcePathRole).toString());
+    m_loginIndex[monitorId] = index;
+    saveLoginState();
+
+    applyWallpaper(monitorId, resolvedPath(model, model->index(index)));
 }
 
 int WallpaperDaemon::screenIndexForMonitor(const QString& monitorId) const
@@ -177,21 +212,75 @@ void WallpaperDaemon::applyWallpaper(const QString& monitorId, const QString& im
 {
     const int screenIndex = screenIndexForMonitor(monitorId);
     if (screenIndex < 0)
-        return;
-
-    // TODO: exportedPath (finalny render z hue/brightness/saturation/LUT)
-    // nie jest jeszcze podłączony po stronie GUI (patrz komentarz przy
-    // exportedPath w PlaylistIO::serializeMonitorState) — na razie daemon
-    // zawsze aplikuje surowy sourcePath, bez uwzględnienia edycji.
-    const int exitCode = QProcess::execute(
-        QStringLiteral("plasma-apply-wallpaperimage"),
-        {QStringLiteral("--screen"), QString::number(screenIndex), imagePath});
-
-    if (exitCode != 0) {
-        qWarning() << "WallpaperDaemon: plasma-apply-wallpaperimage zwróciło" << exitCode
-                   << "dla monitora" << monitorId;
+    {
+        QStringList known;
+        for (QScreen* s : QGuiApplication::screens())
+            known << s->name();
+        qWarning() << "WallpaperDaemon: brak ekranu dla monitorId" << monitorId
+                   << "- aktualnie widoczne ekrany:" << known;
         return;
     }
 
+    // Update immediately so a tick before the dbus call returns doesn't
+    // re-apply the same image.
     m_currentlyShown[monitorId] = imagePath;
+
+    // plasma-apply-wallpaperimage has no --screen option in Plasma 6, so
+    // we call the plasmashell dbus interface directly. This is a session-
+    // bus call (local, fast), so the brief synchronous block is fine for
+    // a daemon that ticks every 30 s.
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.plasmashell"),
+        QStringLiteral("/PlasmaShell"),
+        QStringLiteral("org.kde.PlasmaShell"),
+        QStringLiteral("setWallpaper"));
+
+    QVariantMap params;
+    params[QStringLiteral("Image")] = imagePath;
+
+    msg << QStringLiteral("org.kde.image")
+        << params
+        << static_cast<uint>(screenIndex);
+
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
+    if (reply.type() == QDBusMessage::ErrorMessage)
+        qWarning() << "WallpaperDaemon: setWallpaper failed for monitor" << monitorId
+                   << ":" << reply.errorMessage();
+}
+
+// MARK: - WhenLoggingIn/Ordered persistent index
+
+QString WallpaperDaemon::loginStatePath() const
+{
+    return QFileInfo(m_playlistPath).dir().absoluteFilePath(QStringLiteral("login_state.json"));
+}
+
+void WallpaperDaemon::loadLoginState()
+{
+    QFile file(loginStatePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return; // first run — no state file yet
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    if (!doc.isObject())
+        return;
+
+    const QJsonObject obj = doc.object();
+    for (auto it = obj.constBegin(); it != obj.constEnd(); ++it)
+        m_loginIndex.insert(it.key(), it.value().toInt());
+}
+
+void WallpaperDaemon::saveLoginState() const
+{
+    QJsonObject obj;
+    for (auto it = m_loginIndex.constBegin(); it != m_loginIndex.constEnd(); ++it)
+        obj[it.key()] = it.value();
+
+    const QDir dir = QFileInfo(loginStatePath()).dir();
+    if (!dir.exists())
+        dir.mkpath(".");
+
+    QFile file(loginStatePath());
+    if (file.open(QIODevice::WriteOnly))
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
 }
