@@ -15,9 +15,12 @@
 #include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusReply>
+#include <QProcess>
 #include <QRandomGenerator>
 #include <QScreen>
 #include <QTime>
+#include <QUrl>
+#include <algorithm>
 
 namespace {
 constexpr int kTickIntervalMs = 30 * 1000;
@@ -137,14 +140,24 @@ void WallpaperDaemon::reloadPlaylist()
         m_lastPlaylistMod = QDateTime();
         return;
     }
-    if (fi.lastModified() == m_lastPlaylistMod)
+    if (fi.lastModified() == m_lastPlaylistMod) {
+        qInfo() << "WallpaperDaemon: directory changed but playlist.json not modified — skipping reload";
         return;
+    }
+    qInfo() << "WallpaperDaemon: playlist.json modified — reloading";
     m_lastPlaylistMod = fi.lastModified();
 
     if (!PlaylistIO::importPlaylist(m_playlistPath, m_monitorStates, this)) {
         qWarning() << "WallpaperDaemon: failed to load playlist" << m_playlistPath;
         return; // normalne przy pierwszym uruchomieniu, zanim GUI cokolwiek zapisze
     }
+
+    // Force re-apply of all wallpapers. The GUI's cleanExportDirectory()
+    // deletes and re-renders PNGs (same path, different content), and
+    // plasmashell falls back to a default when it detects the file is
+    // gone. Clearing m_currentlyShown makes tick() re-apply every
+    // monitor, even if the path is the same as before.
+    m_currentlyShown.clear();
 
     // Indeks cyklu OnATimer może wskazywać poza nowy (skrócony) rozmiar
     // kolejki po edycji w GUI — przytnij, żeby tick() nie czytał spoza zakresu.
@@ -218,7 +231,18 @@ void WallpaperDaemon::applyLoginPick(const QString& monitorId, MonitorPlaylistSt
 
 int WallpaperDaemon::screenIndexForMonitor(const QString& monitorId) const
 {
-    const auto screens = QGuiApplication::screens();
+    // QGuiApplication::screens() returns screens in the order Qt discovers
+    // them from the compositor, which on Wayland may NOT match plasmashell's
+    // screen numbering (plasmashell follows the xrandr/left-to-right order).
+    // Sort by geometry (x, then y) so screen 0 = leftmost, matching
+    // plasmashell's expectations.
+    auto screens = QGuiApplication::screens();
+    std::sort(screens.begin(), screens.end(), [](QScreen* a, QScreen* b) {
+        if (a->geometry().x() != b->geometry().x())
+            return a->geometry().x() < b->geometry().x();
+        return a->geometry().y() < b->geometry().y();
+    });
+
     for (int i = 0; i < screens.size(); ++i) {
         if (screens[i]->name() == monitorId)
             return i;
@@ -240,29 +264,39 @@ void WallpaperDaemon::applyWallpaper(const QString& monitorId, const QString& im
     }
 
     // plasma-apply-wallpaperimage has no --screen option in Plasma 6, so
-    // we call the plasmashell dbus interface directly. This is a session-
-    // bus call (local, fast), so the brief synchronous block is fine for
-    // a daemon that ticks every 30 s.
-    QDBusMessage msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.kde.plasmashell"),
-        QStringLiteral("/PlasmaShell"),
-        QStringLiteral("org.kde.PlasmaShell"),
-        QStringLiteral("setWallpaper"));
+    // we call the plasmashell dbus interface. We use gdbus via QProcess
+    // instead of Qt's QDBus because Qt's QVariantMap marshalling may wrap
+    // the map as a DBus variant (v) instead of a{sv}, which plasmashell
+    // silently ignores.
+    qInfo() << "WallpaperDaemon: applying wallpaper to" << monitorId
+            << "screen" << screenIndex << ":" << imagePath;
 
-    QVariantMap params;
-    params[QStringLiteral("Image")] = imagePath;
+    // The GUI re-renders PNGs in place (same <uuid>.png path, new content),
+    // and plasmashell ignores a setWallpaper call whose Image value equals
+    // what it already holds — so a plain re-apply of the same path leaves
+    // the stale (or default fallback, if the file was momentarily deleted)
+    // image on screen. Versioning the URL with the file's mtime makes the
+    // value change whenever the content does, which forces plasmashell to
+    // reload without restarting it. QUrl::toLocalFile() ignores the query,
+    // so plasma still opens the very same file.
+    QString url = QUrl::fromLocalFile(imagePath).toString();
+    const QDateTime mtime = QFileInfo(imagePath).lastModified();
+    if (mtime.isValid())
+        url += QStringLiteral("?v=") + QString::number(mtime.toMSecsSinceEpoch());
 
-    msg << QStringLiteral("org.kde.image")
-        << params
-        << static_cast<uint>(screenIndex);
+    const QString param = QString("{'Image': <'%1'>}").arg(url);
+    const int exitCode = QProcess::execute(
+        QStringLiteral("gdbus"),
+        {QStringLiteral("call"), QStringLiteral("--session"),
+         QStringLiteral("--dest"), QStringLiteral("org.kde.plasmashell"),
+         QStringLiteral("--object-path"), QStringLiteral("/PlasmaShell"),
+         QStringLiteral("--method"), QStringLiteral("org.kde.PlasmaShell.setWallpaper"),
+         QStringLiteral("org.kde.image"), param,
+         QString::number(screenIndex)});
 
-    qDebug() << "WallpaperDaemon: applying wallpaper to" << monitorId
-             << "screen" << screenIndex << ":" << imagePath;
-
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
-    if (reply.type() == QDBusMessage::ErrorMessage) {
-        qWarning() << "WallpaperDaemon: setWallpaper failed for monitor" << monitorId
-                   << ":" << reply.errorMessage();
+    if (exitCode != 0) {
+        qWarning() << "WallpaperDaemon: gdbus setWallpaper failed for monitor" << monitorId
+                   << "exit code" << exitCode;
         return;  // don't update m_currentlyShown — retry on next tick
     }
 
